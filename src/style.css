@@ -37,6 +37,111 @@ body {
   height: 100%;
 }
 
+/* ゲーム本体の UI */
+
+#game {
+  position: fixed;
+  inset: 0;
+  /* 盤面のタップを邪魔しない。操作できる部分だけ個別に受け取る。 */
+  pointer-events: none;
+}
+
+.game-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  padding-top: calc(var(--safe-top) + 14px);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.game-stage {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.game-turns {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.game-retry {
+  margin-left: auto;
+  padding: 8px 14px;
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+.game-rotate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 22px);
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: auto;
+}
+
+.game-rotate[hidden] {
+  display: none;
+}
+
+.game-rotate button {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  background: #0a0c12e6;
+  pointer-events: auto;
+  text-align: center;
+}
+
+.game-overlay[hidden] {
+  display: none;
+}
+
+.game-overlay-title {
+  font-size: clamp(34px, 11vw, 56px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.game-overlay-note {
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 22em;
+}
+
+.game-next {
+  margin-top: 14px;
+  min-width: 220px;
+  padding: 15px;
+  font-size: 15px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 開発用 HUD */
+
+/* display を指定した要素では UA の [hidden] が負けるため、明示的に打ち消す。 */
+#hud[hidden] {
+  display: none;
+}
+
 #hud {
   position: fixed;
   top: calc(var(--safe-top) + 12px);
@@ -79,18 +184,6 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: pre;
-}
-
-.hud-simulation {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-/* display を指定した要素では UA の [hidden] { display: none } が負けるため、明示的に打ち消す。 */
-.hud-simulation[hidden] {
-  display: none;
 }
 
 button {

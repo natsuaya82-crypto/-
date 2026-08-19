@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+# main への push で公開サイトを更新する。
+# TestFlight (ios-deploy.yml) とは独立していて、こちらは無料かつ数十秒で終わる。
+
+on:
+  push:
+    # main が本来の公開元。作業ブランチからも公開できるようにしてあるのは、
+    # main へ取り込む前に実物を確認したいため。
+    branches:
+      - main
+      - 'claude/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開は 1 本ずつ。進行中のものは新しいほうを優先する。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # 壊れたものを公開しないよう、ここで止める。
+      - run: npm run typecheck
+      - run: npm test
+
+      - run: npx vite build
+
+      # enablement: true で、リポジトリ設定を手で開かなくても Pages が有効になる。
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

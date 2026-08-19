@@ -8,6 +8,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#11131a" />
+    <meta name="description" content="Turn the phone itself to roll the ball into the goal." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Gravity Room</title>
   </head>
@@ -15,7 +16,28 @@
     <canvas id="scene"></canvas>
 
     <!-- 文言は data-i18n をキーに JS から流し込む。HTML には原文を書かない。 -->
-    <div id="hud">
+    <div id="game">
+      <header class="game-bar">
+        <span class="game-stage" data-game="stage"></span>
+        <span class="game-turns" data-game="turns"></span>
+        <button type="button" class="game-retry" data-game="retry" data-i18n="ui.retry"></button>
+      </header>
+
+      <!-- センサーが使えない環境で「端末を回す」の代わりになる操作。 -->
+      <div class="game-rotate" data-game="rotate-controls" hidden>
+        <button type="button" data-rotate="1" aria-label="Rotate counter-clockwise">&#8634;</button>
+        <button type="button" data-rotate="-1" aria-label="Rotate clockwise">&#8635;</button>
+      </div>
+
+      <div class="game-overlay" data-game="overlay" hidden>
+        <p class="game-overlay-title" data-game="overlay-title"></p>
+        <p class="game-overlay-note" data-game="overlay-note"></p>
+        <button type="button" class="game-next" data-game="next"></button>
+      </div>
+    </div>
+
+    <!-- 開発用。?debug=1 のときだけ表示する。 -->
+    <div id="hud" hidden>
       <p class="hud-caption" data-i18n="hud.caption"></p>
       <p class="hud-state" data-hud="state">Unknown</p>
 
@@ -29,8 +51,6 @@
         <dt data-i18n="hud.worldGravity"></dt><dd data-row="world">—</dd>
         <dt data-i18n="hud.osOrientation"></dt><dd data-row="os">—</dd>
       </dl>
-
-      <div class="hud-simulation" data-hud="simulation" hidden></div>
 
       <button type="button" class="hud-invert" data-hud="invert" data-i18n="hud.invert"></button>
     </div>

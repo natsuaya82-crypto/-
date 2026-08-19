@@ -8,7 +8,9 @@ import {
 import { OrientationManager } from './core/orientationManager'
 import { OrientationState } from './core/orientation'
 import { GravityManager } from './systems/gravityManager'
-import { Phase0Scene } from './scene/phase0Scene'
+import { GameScene } from './scene/gameScene'
+import { StageManager } from './stages/stageManager'
+import { GameUi } from './ui/gameUi'
 import { Hud } from './ui/hud'
 import { applyStaticTranslations, createTranslator, detectLocale } from './i18n'
 
@@ -24,7 +26,11 @@ const t = createTranslator(locale)
 document.documentElement.lang = locale
 applyStaticTranslations(document, locale)
 
+const debugEnabled = new URLSearchParams(location.search).get('debug') === '1'
+
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
+const gameRoot = document.querySelector<HTMLElement>('#game')!
+const gameBar = document.querySelector<HTMLElement>('.game-bar')!
 const hudRoot = document.querySelector<HTMLElement>('#hud')!
 const startOverlay = document.querySelector<HTMLElement>('#start-overlay')!
 const startButton = document.querySelector<HTMLButtonElement>('#start-button')!
@@ -35,18 +41,36 @@ let motionProvider: DeviceMotionAttitudeProvider | null = null
 
 const orientationManager = new OrientationManager(simulatedProvider)
 const gravityManager = new GravityManager(orientationManager)
-const scene = new Phase0Scene(canvas)
+const stageManager = new StageManager()
+const scene = new GameScene(canvas)
 
-const hud = new Hud(hudRoot, t, {
-  onSimulatedStateSelected: (state) => simulatedProvider.setState(state),
-  onToggleGravitySign: () => {
-    if (!motionProvider) {
-      return
-    }
-    const next = motionProvider.getSignConvention() === 'ios' ? 'spec' : 'ios'
-    motionProvider.setSignConvention(next)
-  },
+// 端末を回した回数を手数として数える。ゲーム側の指標なのでここで繋ぐ。
+orientationManager.onOrientationChanged(() => stageManager.countRotation())
+
+const gameUi = new GameUi(gameRoot, t, {
+  onRetry: () => stageManager.restart(),
+  onNext: () => stageManager.advance(),
+  onReplayFromStart: () => stageManager.load(0),
+  onRotate: (steps) => simulatedProvider.rotate(steps),
 })
+
+// センサーが取れている間は実機の姿勢がそのまま入力になるので、代替操作は出さない。
+gameUi.setRotateControlsVisible(true)
+
+stageManager.onStageLoaded((progress) => scene.loadStage(progress.stage))
+
+const hud = debugEnabled
+  ? new Hud(hudRoot, t, {
+      onToggleGravitySign: () => {
+        if (!motionProvider) {
+          return
+        }
+        motionProvider.setSignConvention(motionProvider.getSignConvention() === 'ios' ? 'spec' : 'ios')
+      },
+    })
+  : null
+
+hudRoot.hidden = !debugEnabled
 
 function useProvider(provider: AttitudeProvider): void {
   orientationManager.setProvider(provider)
@@ -59,7 +83,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  *
  * DeviceMotionEvent は「API が存在する」ことと「値が届く」ことが別問題で、
  * PC の Chrome のようにイベントが一度も発火しない環境がある。
- * 存在チェックだけで実センサーに切り替えると、画面が Unknown のまま固まって
+ * 存在チェックだけで実センサーに切り替えると、画面が固まって
  * 「壊れている」ように見えてしまうため、実データの到着で判断する。
  */
 async function waitForAttitude(provider: DeviceMotionAttitudeProvider): Promise<boolean> {
@@ -77,7 +101,7 @@ async function waitForAttitude(provider: DeviceMotionAttitudeProvider): Promise<
 
 /**
  * 埋め込み (iframe) の中ではモーションセンサーの許可が下りないことがある。
- * その場合は Safari で直接開けば動くので、原因と対処を出す。
+ * その場合はブラウザで直接開けば動くので、原因と対処を出す。
  */
 function isEmbedded(): boolean {
   try {
@@ -121,6 +145,7 @@ async function startSensor(): Promise<void> {
 
   motionProvider = provider
   useProvider(provider)
+  gameUi.setRotateControlsVisible(false)
 }
 
 startButton.addEventListener('click', async () => {
@@ -132,6 +157,7 @@ startButton.addEventListener('click', async () => {
     startOverlay.hidden = true
     return
   }
+
   startButton.disabled = false
   startButton.textContent = t('start.continueSimulated')
   startButton.onclick = () => {
@@ -139,11 +165,19 @@ startButton.addEventListener('click', async () => {
   }
 })
 
-// HUD が覆う高さを渡し、部屋が隠れない位置に配置させる。
-const layoutScene = (): void => scene.resize(hudRoot.getBoundingClientRect().bottom)
+// 上部の UI が覆う高さを渡し、部屋が隠れない位置に配置させる。
+const layoutScene = (): void => {
+  const inset = hudRoot.hidden
+    ? gameBar.getBoundingClientRect().bottom
+    : hudRoot.getBoundingClientRect().bottom
+  scene.resize(inset)
+}
 
 window.addEventListener('resize', layoutScene)
+new ResizeObserver(layoutScene).observe(gameRoot)
 new ResizeObserver(layoutScene).observe(hudRoot)
+
+stageManager.load(0)
 layoutScene()
 
 let lastTimestamp = performance.now()
@@ -154,10 +188,13 @@ function tick(timestamp: number): void {
 
   orientationManager.update(deltaSeconds)
   gravityManager.update(deltaSeconds)
+  stageManager.update(deltaSeconds, gravityManager.gravity)
 
-  scene.update(gravityManager.direction)
+  const progress = stageManager.progress
+  scene.update(stageManager.ball.position, gravityManager.direction, progress.status === 'cleared')
   scene.render()
-  hud.update(orientationManager, gravityManager, motionProvider === null)
+  gameUi.update(progress, stageManager.isLastStage)
+  hud?.update(orientationManager, gravityManager)
 
   requestAnimationFrame(tick)
 }

@@ -261,3 +261,38 @@ describe('補助関数', () => {
     expect(deltaAngle(0, 360)).toBeCloseTo(0, 6)
   })
 })
+
+describe('シミュレーションの回転操作', () => {
+  it('反時計回りに 1 回で Portrait から LandscapeLeft へ進む', () => {
+    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+    provider.rotate(1)
+    expect(rollToNearestState(gravityToRollDegrees(provider.read().gravity))).toBe(
+      OrientationState.LandscapeLeft,
+    )
+  })
+
+  it('時計回りに 1 回で Portrait から LandscapeRight へ進む', () => {
+    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+    provider.rotate(-1)
+    expect(rollToNearestState(gravityToRollDegrees(provider.read().gravity))).toBe(
+      OrientationState.LandscapeRight,
+    )
+  })
+
+  it('4 回まわすと元に戻る', () => {
+    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+    const before = provider.read().gravity
+    for (let i = 0; i < 4; i++) {
+      provider.rotate(1)
+    }
+    expect(provider.read().gravity).toEqual(before)
+  })
+
+  it('負の方向へまわしても範囲から外れない', () => {
+    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+    provider.rotate(-5)
+    expect(rollToNearestState(gravityToRollDegrees(provider.read().gravity))).toBe(
+      OrientationState.LandscapeRight,
+    )
+  })
+})

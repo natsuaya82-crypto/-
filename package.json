@@ -9,7 +9,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "demo": "vite build && node tools/build-single-file.mjs",
-    "verify": "node tools/verify-phase0.mjs"
+    "verify": "node tools/verify.mjs"
   },
   "repository": {
     "type": "git",

@@ -175,10 +175,32 @@ export class DeviceMotionAttitudeProvider implements AttitudeProvider {
 export class SimulatedAttitudeProvider implements AttitudeProvider {
   readonly sourceName = 'Simulated'
 
+  /** 端末を反時計回りに 90 度ずつ回したときの並び。 */
+  private static readonly ROTATION_ORDER: readonly OrientationState[] = [
+    'Portrait',
+    'LandscapeLeft',
+    'PortraitUpsideDown',
+    'LandscapeRight',
+  ] as OrientationState[]
+
   private state: OrientationState
 
   constructor(initialState: OrientationState) {
     this.state = initialState
+  }
+
+  /**
+   * 端末を回す操作をそのまま再現する。
+   * steps が正で反時計回り、負で時計回り。
+   *
+   * 絶対的な姿勢を選ばせるより、実機で行う「回す」という動作に
+   * 対応させたほうが、センサーが無い環境でも同じ感覚で遊べる。
+   */
+  rotate(steps: number): void {
+    const order = SimulatedAttitudeProvider.ROTATION_ORDER
+    const currentIndex = Math.max(order.indexOf(this.state), 0)
+    const nextIndex = (((currentIndex + steps) % order.length) + order.length) % order.length
+    this.state = order[nextIndex]!
   }
 
   async start(): Promise<void> {}
