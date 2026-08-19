@@ -69,8 +69,22 @@ async function waitForAttitude(provider: DeviceMotionAttitudeProvider): Promise<
  * iOS 13 以降はユーザー操作の中から requestPermission を呼ぶ必要があるため、
  * 起動直後ではなくタップを受けてから実行する。
  */
+/**
+ * 埋め込み (iframe) の中ではモーションセンサーの許可が下りないことがある。
+ * その場合は Safari で直接開けば動くので、原因と対処を出す。
+ */
+function isEmbedded(): boolean {
+  try {
+    return window.self !== window.top
+  } catch {
+    // クロスオリジンで window.top を読めない = 埋め込まれている。
+    return true
+  }
+}
+
 async function startSensor(): Promise<void> {
-  const fallbackNotice = 'シミュレーションで動作します。画面のボタンで姿勢を切り替えられます。'
+  const embeddedHint = isEmbedded() ? ' ブラウザで直接開くとセンサーが使えます。' : ''
+  const fallbackNotice = `シミュレーションで動作します。画面のボタンで姿勢を切り替えられます。${embeddedHint}`
 
   if (!DeviceMotionAttitudeProvider.isSupported()) {
     startMessage.textContent = `この環境にはモーションセンサーがありません。${fallbackNotice}`

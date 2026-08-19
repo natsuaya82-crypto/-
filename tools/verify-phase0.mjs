@@ -22,6 +22,9 @@ const CASES = [
   { label: 'portrait-upside-down', gravity: { x: 0, y: GRAVITY, z: 0 }, expected: 'Portrait Upside Down' },
   { label: 'landscape-right', gravity: { x: GRAVITY, y: 0, z: 0 }, expected: 'Landscape Right' },
   { label: 'flat-on-table', gravity: { x: 0, y: 0, z: -GRAVITY }, expected: 'Landscape Right' },
+  // 90度ずつではなく、真逆へ一気に飛ばす。補間の回転軸が定まらないケース。
+  { label: 'back-to-portrait', gravity: { x: 0, y: -GRAVITY, z: 0 }, expected: 'Portrait' },
+  { label: 'flip-180', gravity: { x: 0, y: GRAVITY, z: 0 }, expected: 'Portrait Upside Down' },
 ]
 
 /** ページ側で devicemotion を発火し続ける。実機のイベント間隔に近づけて 60Hz。 */

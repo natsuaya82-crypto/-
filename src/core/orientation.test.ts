@@ -128,6 +128,34 @@ describe('OrientationManager', () => {
     expect(angleDistanceToState(58, OrientationState.Portrait)).toBeGreaterThan(45 + hysteresisDegrees)
   })
 
+  it('180度ひっくり返しても姿勢が切り替わる', () => {
+    // 真逆の向きへの補間は回転軸が一意に決まらない。
+    // ここを線形補間で処理すると from に戻り続けて、永久に切り替わらなくなる。
+    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+    const manager = new OrientationManager(provider)
+    advance(manager, 0.5)
+    expect(manager.current).toBe(OrientationState.Portrait)
+
+    provider.setState(OrientationState.PortraitUpsideDown)
+    advance(manager, 1.5)
+
+    expect(manager.current).toBe(OrientationState.PortraitUpsideDown)
+  })
+
+  it('180度反転の途中で中間の姿勢を確定させない', () => {
+    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+    const manager = new OrientationManager(provider)
+    const changes: OrientationState[] = []
+    advance(manager, 0.5)
+    manager.onOrientationChanged((current) => changes.push(current))
+
+    provider.setState(OrientationState.PortraitUpsideDown)
+    advance(manager, 1.5)
+
+    // 通過点の Landscape が確定してしまうと、ステージ側のギミックが誤爆する。
+    expect(changes).toEqual([OrientationState.PortraitUpsideDown])
+  })
+
   it('平置きでは直前の姿勢を保持する', () => {
     const provider = new SimulatedAttitudeProvider(OrientationState.LandscapeRight)
     const manager = new OrientationManager(provider)

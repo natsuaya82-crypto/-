@@ -133,19 +133,51 @@ export function normalize(v: Vec3): Vec3 | null {
   return { x: v.x / length, y: v.y / length, z: v.z / length }
 }
 
+const ANTIPODAL_EPSILON = 1e-4
+
+function cross(a: Vec3, b: Vec3): Vec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  }
+}
+
+/**
+ * v に直交する単位ベクトルを 1 つ返す。
+ *
+ * 基準に画面手前方向 (0,0,1) を使うので、v が画面平面内にあるときは
+ * 結果も画面平面内に収まる。端末を 180 度ひっくり返したときに、
+ * 画面の中で回っているように見えるのはこのため。
+ */
+function perpendicularTo(v: Vec3): Vec3 {
+  const reference: Vec3 = Math.abs(v.z) < 0.9 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 }
+  return normalize(cross(v, reference)) ?? { x: 1, y: 0, z: 0 }
+}
+
 /** 単位ベクトル同士を球面補間する。向きの平滑化に使う。 */
 export function slerpDirection(from: Vec3, to: Vec3, t: number): Vec3 {
   const dot = Math.min(1, Math.max(-1, from.x * to.x + from.y * to.y + from.z * to.z))
   const angle = Math.acos(dot)
 
-  // ほぼ同じ向き、または真逆で軸が定まらない場合は線形補間で十分。
-  if (angle < 1e-4 || Math.PI - angle < 1e-4) {
-    const lerped = {
-      x: from.x + (to.x - from.x) * t,
-      y: from.y + (to.y - from.y) * t,
-      z: from.z + (to.z - from.z) * t,
+  if (angle < ANTIPODAL_EPSILON) {
+    return to
+  }
+
+  // 真逆を向いている場合は回転軸が一意に定まらない。
+  // ここで線形補間に逃げると、中点が原点を通るせいで正規化後に from へ戻ってしまい、
+  // 端末を 180 度ひっくり返しても姿勢が切り替わらなくなる。
+  // 直交軸を 1 つ選んで、その軸まわりに回す。
+  if (Math.PI - angle < ANTIPODAL_EPSILON) {
+    const axis = perpendicularTo(from)
+    const theta = t * Math.PI
+    const cosTheta = Math.cos(theta)
+    const sinTheta = Math.sin(theta)
+    return {
+      x: from.x * cosTheta + axis.x * sinTheta,
+      y: from.y * cosTheta + axis.y * sinTheta,
+      z: from.z * cosTheta + axis.z * sinTheta,
     }
-    return normalize(lerped) ?? to
   }
 
   const sinAngle = Math.sin(angle)
