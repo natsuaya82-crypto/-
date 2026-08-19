@@ -284,6 +284,11 @@ async function verifySimulationFallback(context) {
     .locator('[data-diag="causes"]')
     .evaluate((element) => !element.hidden)
   check(causesVisible, 'diagnostics-shows-causes', causesVisible ? '原因が出た' : '出ていない')
+  // 失敗理由が名指しで出ること。原因を推測で伝えなくて済むようにする。
+  const reason = (await readText(page, '[data-diag="reason"]')).trim()
+  const embedded = (await readText(page, '[data-diag="embedded"]')).trim()
+  check(reason !== '—' && reason.length > 0, 'diagnostics-names-reason', `${reason} / embedded=${embedded}`)
+
   await page.screenshot({ path: `${SHOT_DIR}/diagnostics.png` })
   await page.click('[data-diag="close"]')
   await page.screenshot({ path: `${SHOT_DIR}/fallback.png` })

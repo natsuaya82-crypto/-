@@ -14,6 +14,10 @@ export interface SensorStatus {
   live: boolean
   sourceName: string
   gravity: { x: number; y: number; z: number }
+  /** 埋め込み表示の中で動いているか。iOS はこの場合に許可を出さない。 */
+  embedded: boolean
+  /** センサーに繋げなかった理由。繋がっているときは 'reason.none'。 */
+  reasonKey: MessageKey
 }
 
 function formatVector(v: { x: number; y: number; z: number }): string {
@@ -101,6 +105,8 @@ export class GameUi {
   updateSensorStatus(status: SensorStatus): void {
     this.diagnosticsRows.source!.textContent = status.sourceName
     this.diagnosticsRows.gravity!.textContent = formatVector(status.gravity)
+    this.diagnosticsRows.embedded!.textContent = this.t(status.embedded ? 'diag.yes' : 'diag.no')
+    this.diagnosticsRows.reason!.textContent = this.t(status.reasonKey)
 
     const key = String(status.live)
     if (key === this.lastStatusKey) {

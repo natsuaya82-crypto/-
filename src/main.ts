@@ -14,7 +14,7 @@ import { GameUi } from './ui/gameUi'
 import { TiltControls } from './ui/tiltControls'
 import { ShakeDetector } from './core/shake'
 import { Hud } from './ui/hud'
-import { applyStaticTranslations, createTranslator, detectLocale } from './i18n'
+import { applyStaticTranslations, createTranslator, detectLocale, type MessageKey } from './i18n'
 import { getScreenRotationDegrees, observeScreenRotation } from './core/screenRotation'
 
 /** 1 フレームの経過秒の上限。タブ復帰時の巨大な dt で状態が飛ぶのを防ぐ。 */
@@ -30,6 +30,9 @@ document.documentElement.lang = locale
 applyStaticTranslations(document, locale)
 
 const debugEnabled = new URLSearchParams(location.search).get('debug') === '1'
+
+/** センサーに繋げなかった理由。画面に名指しで出すために持っておく。 */
+let sensorFailureKey: MessageKey = 'reason.none'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const gameRoot = document.querySelector<HTMLElement>('#game')!
@@ -139,6 +142,7 @@ async function startSensor(): Promise<void> {
   const fallbackNotice = `${t('sensor.fallbackNotice')}${embeddedHint}`
 
   if (!DeviceMotionAttitudeProvider.isSupported()) {
+    sensorFailureKey = 'reason.unsupported'
     startMessage.textContent = `${t('sensor.unsupported')} ${fallbackNotice}`
     return
   }
@@ -147,19 +151,26 @@ async function startSensor(): Promise<void> {
   try {
     await provider.start()
   } catch (error) {
-    const reason =
-      error instanceof MotionPermissionDeniedError ? t('sensor.denied') : t('sensor.startFailed')
-    startMessage.textContent = `${reason}. ${fallbackNotice}`
+    // 埋め込みの中では iOS がそもそも許可を出さない。拒否と区別して伝える。
+    sensorFailureKey =
+      error instanceof MotionPermissionDeniedError
+        ? isEmbedded()
+          ? 'reason.embedded'
+          : 'reason.denied'
+        : 'reason.denied'
+    startMessage.textContent = `${t('sensor.denied')}. ${fallbackNotice}`
     return
   }
 
   startMessage.textContent = t('sensor.checking')
   if (!(await waitForAttitude(provider))) {
     provider.stop()
+    sensorFailureKey = isEmbedded() ? 'reason.embedded' : 'reason.noData'
     startMessage.textContent = `${t('sensor.noData')} ${fallbackNotice}`
     return
   }
 
+  sensorFailureKey = 'reason.none'
   motionProvider = provider
   useProvider(provider)
   // 実機ではセンサーが本物なので、代替操作は止める。
@@ -232,6 +243,8 @@ function tick(timestamp: number): void {
     live: motionProvider !== null && orientationManager.attitudeAvailable,
     sourceName: orientationManager.sourceName,
     gravity: orientationManager.gravity,
+    embedded: isEmbedded(),
+    reasonKey: sensorFailureKey,
   })
   hud?.update(orientationManager, gravityManager)
 
