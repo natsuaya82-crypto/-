@@ -3,13 +3,20 @@ name: Deploy to GitHub Pages
 # main への push で公開サイトを更新する。
 # TestFlight (ios-deploy.yml) とは独立していて、こちらは無料かつ数十秒で終わる。
 
+# 自動では動かさない。
+#
+# Pages はリポジトリの Settings > Pages で Source を "GitHub Actions" に
+# しておかないと有効にできず、それまでは何度流しても
+# "Resource not accessible by integration" で失敗する。
+# push のたびに失敗メールが飛ぶだけなので、手動実行だけにしてある。
+#
+# Settings を変えたら、まずここを一度手動で流す。
+# 成功を確認できたら、下の push トリガーを戻してよい。
+#
+# on:
+#   push:
+#     branches: [main]
 on:
-  push:
-    # main が本来の公開元。作業ブランチからも公開できるようにしてあるのは、
-    # main へ取り込む前に実物を確認したいため。
-    branches:
-      - main
-      - 'claude/**'
   workflow_dispatch:
 
 permissions:
