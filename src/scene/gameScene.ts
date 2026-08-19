@@ -106,6 +106,17 @@ export class GameScene {
     this.highlightDownWall(gravityDirection)
   }
 
+  /**
+   * OS が画面を回した角度ぶん、世界を回し返す。
+   *
+   * これをしないと世界が画面に固定されてしまい、
+   * 部屋から見た重力が常に「下」になって、端末を回しても何も起きなくなる。
+   * 物理は部屋の座標系のままで良いので、描画だけを回す。
+   */
+  setScreenRotationDegrees(degrees: number): void {
+    this.stageGroup.rotation.z = degrees * (Math.PI / 180)
+  }
+
   render(): void {
     this.renderer.render(this.scene, this.camera)
   }

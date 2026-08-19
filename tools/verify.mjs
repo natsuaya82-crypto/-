@@ -163,6 +163,39 @@ async function verifyGameplay(context) {
   await page.close()
 }
 
+/**
+ * OS が画面を回した状態でも成立するか。
+ *
+ * 世界が画面に固定されてしまうと、部屋から見た重力が常に「下」になり、
+ * 端末を回しても何も起きなくなる。回転を打ち消せているかを見る。
+ */
+async function verifyScreenRotation(browser) {
+  console.log('\n--- E. OS が画面を回した状態 ---')
+
+  // 横向き (画面が 90 度回った状態) を再現する。
+  const context = await browser.newContext({
+    ...devices['iPhone 13 landscape'],
+    hasTouch: true,
+  })
+  await context.addInitScript(() => {
+    Object.defineProperty(screen.orientation, 'angle', { get: () => 90, configurable: true })
+    Object.defineProperty(screen.orientation, 'type', { get: () => 'landscape-primary', configurable: true })
+  })
+
+  const page = await openWithSensor(context, '?lang=en')
+
+  const worldRotation = await page.evaluate(() => screen.orientation.angle)
+  check(worldRotation === 90, 'rotation-angle-applied', `screen.orientation.angle = ${worldRotation}`)
+
+  // 画面が回っていても、端末を回せばゴールへ運べること。
+  await turnTo(page, GRAVITY.landscapeRight, 3500)
+  check(await isOverlayVisible(page), 'rotated-stage-clearable', 'ゴールできる')
+  await page.screenshot({ path: `${SHOT_DIR}/screen-rotated.png` })
+
+  await page.close()
+  await context.close()
+}
+
 async function verifyLocales(context) {
   console.log('\n--- C. 言語 ---')
   const expected = [
@@ -242,6 +275,7 @@ async function main() {
   try {
     await verifyOrientation(context)
     await verifyGameplay(context)
+    await verifyScreenRotation(browser)
     await verifyLocales(context)
     await verifySimulationFallback(context)
   } finally {

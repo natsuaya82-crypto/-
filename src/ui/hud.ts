@@ -47,7 +47,8 @@ export class Hud {
     this.setRow('world', formatVector(gravity.direction))
 
     // OS の画面回転はゲームロジックに使っていない。比較のために出しているだけ。
-    this.setRow('os', `${screen.orientation?.type ?? 'unknown'} (${this.t('hud.unused')})`)
+    const screenAngle = screen.orientation?.angle ?? 0
+    this.setRow('os', `${screen.orientation?.type ?? 'unknown'} ${screenAngle}° (${this.t('hud.unused')})`)
 
   }
 

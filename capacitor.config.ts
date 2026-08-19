@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.tokinets.gimmick',
-  appName: 'Smartphone Gimmick',
+  appName: 'Gravity Room',
   webDir: 'dist',
   ios: {
     // セーフエリアは CSS の env(safe-area-inset-*) で自前処理しているため、

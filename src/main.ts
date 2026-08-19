@@ -13,6 +13,7 @@ import { StageManager } from './stages/stageManager'
 import { GameUi } from './ui/gameUi'
 import { Hud } from './ui/hud'
 import { applyStaticTranslations, createTranslator, detectLocale } from './i18n'
+import { getScreenRotationDegrees, observeScreenRotation } from './core/screenRotation'
 
 /** 1 フレームの経過秒の上限。タブ復帰時の巨大な dt で状態が飛ぶのを防ぐ。 */
 const MAX_DELTA_SECONDS = 0.1
@@ -173,12 +174,20 @@ const layoutScene = (): void => {
   scene.resize(inset)
 }
 
+// OS が画面を回したら、世界を回し返して端末との位置関係を保つ。
+const applyScreenRotation = (degrees: number): void => {
+  scene.setScreenRotationDegrees(degrees)
+  layoutScene()
+}
+
+observeScreenRotation(applyScreenRotation)
+
 window.addEventListener('resize', layoutScene)
 new ResizeObserver(layoutScene).observe(gameRoot)
 new ResizeObserver(layoutScene).observe(hudRoot)
 
 stageManager.load(0)
-layoutScene()
+applyScreenRotation(getScreenRotationDegrees())
 
 let lastTimestamp = performance.now()
 
