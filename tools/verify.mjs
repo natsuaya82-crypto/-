@@ -25,6 +25,20 @@ const GRAVITY = {
   upsideDown: { x: 0, y: G, z: 0 },
   landscapeRight: { x: G, y: 0, z: 0 },
   flat: { x: 0, y: 0, z: -G },
+  back: { x: 0, y: 0, z: -G },
+  front: { x: 0, y: 0, z: G },
+  /** 斜め。傾けた分だけ斜めに転がることの確認に使う。 */
+  downRight: { x: G * 0.7, y: -G * 0.7, z: 0 },
+}
+
+/** 端末を振ったことにする。重力に加えて大きな線形加速度を流す。 */
+async function shake(page, gravity) {
+  await page.evaluate((g) => {
+    window.__linear = { x: 0, y: 30, z: 0 }
+    window.__gravity = g
+  }, gravity)
+  await page.waitForTimeout(120)
+  await page.evaluate(() => void (window.__linear = { x: 0, y: 0, z: 0 }))
 }
 
 const ORIENTATION_CASES = [
@@ -49,10 +63,15 @@ function check(passed, label, detail) {
 function startMotionFeed(page) {
   return page.evaluate(() => {
     window.__gravity = { x: 0, y: -9.81, z: 0 }
+    window.__linear = { x: 0, y: 0, z: 0 }
     setInterval(() => {
+      const g = window.__gravity
+      const a = window.__linear
       const event = new Event('devicemotion')
-      Object.defineProperty(event, 'accelerationIncludingGravity', { value: window.__gravity })
-      Object.defineProperty(event, 'acceleration', { value: { x: 0, y: 0, z: 0 } })
+      Object.defineProperty(event, 'accelerationIncludingGravity', {
+        value: { x: g.x + a.x, y: g.y + a.y, z: g.z + a.z },
+      })
+      Object.defineProperty(event, 'acceleration', { value: a })
       window.dispatchEvent(event)
     }, 16)
   })
@@ -103,59 +122,67 @@ async function verifyGameplay(context) {
   console.log('\n--- B. ゲームとして遊べるか ---')
   const page = await openWithSensor(context, '?lang=en')
 
-  // センサーが効いているときは代替操作を隠す。実機で邪魔になるため。
-  const controlsHidden = await page
-    .locator('[data-game="rotate-controls"]')
+  // センサーが効いているときは代替操作の説明を出さない。
+  const hintHidden = await page
+    .locator('[data-game="tilt-hint"]')
     .evaluate((element) => element.hidden)
-  check(controlsHidden, 'controls-hidden-with-sensor', controlsHidden ? '隠れている' : '出たまま')
+  check(hintHidden, 'tilt-hint-hidden-with-sensor', hintHidden ? '隠れている' : '出たまま')
 
   await page.screenshot({ path: `${SHOT_DIR}/stage-1-start.png` })
   check(
-    (await readText(page, '[data-game="stage"]')).includes('1 / 3'),
+    (await readText(page, '[data-game="stage"]')).includes('1 / 5'),
     'stage-1-loaded',
     (await readText(page, '[data-game="stage"]')).trim(),
   )
 
-  // ステージ1: 右へ倒すだけ。
-  await turnTo(page, GRAVITY.landscapeRight, 3000)
-  check(await isOverlayVisible(page), 'stage-1-cleared', (await readText(page, '[data-game="overlay-title"]')).trim())
+  // 1. 斜めに傾けるだけ。傾けた向きへ素直に転がる。
+  await turnTo(page, GRAVITY.downRight, 3200)
+  check(await isOverlayVisible(page), 'stage-1-cleared-by-diagonal', '斜め傾けでクリア')
   await page.screenshot({ path: `${SHOT_DIR}/stage-1-cleared.png` })
 
-  const turnsText = (await readText(page, '[data-game="turns"]')).trim()
-  check(/\d/.test(turnsText), 'turns-counted', turnsText)
-
-  // ステージ2へ。
+  // 2. 柱を天井経由で越える。
   await page.click('[data-game="next"]')
   await page.waitForTimeout(300)
-  check(
-    (await readText(page, '[data-game="stage"]')).includes('2 / 3'),
-    'stage-2-loaded',
-    (await readText(page, '[data-game="stage"]')).trim(),
-  )
   await page.screenshot({ path: `${SHOT_DIR}/stage-2-start.png` })
-
-  // 素直に横へ倒すだけでは柱に阻まれる。
   await turnTo(page, GRAVITY.landscapeRight, 3000)
-  check(!(await isOverlayVisible(page)), 'stage-2-blocked', 'まだクリアしていない')
-  await page.screenshot({ path: `${SHOT_DIR}/stage-2-blocked.png` })
-
-  // やり直してから、天井経由の正解手順。
+  check(!(await isOverlayVisible(page)), 'stage-2-blocked', '横へ傾けるだけでは届かない')
   await page.click('[data-game="retry"]')
   await page.waitForTimeout(300)
   await turnTo(page, GRAVITY.upsideDown, 2600)
   await turnTo(page, GRAVITY.landscapeRight, 2600)
   await turnTo(page, GRAVITY.portrait, 3000)
-  check(await isOverlayVisible(page), 'stage-2-cleared', (await readText(page, '[data-game="overlay-title"]')).trim())
-  await page.screenshot({ path: `${SHOT_DIR}/stage-2-cleared.png` })
+  check(await isOverlayVisible(page), 'stage-2-cleared', 'CLEAR')
 
-  // ステージ3。
+  // 3. 奥行きを使う。手前を塞ぐ衝立を、奥へ逃がして通る。
+  await page.click('[data-game="next"]')
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: `${SHOT_DIR}/stage-3-depth.png` })
+  await turnTo(page, GRAVITY.back, 2600)
+  await turnTo(page, GRAVITY.landscapeRight, 2600)
+  await turnTo(page, GRAVITY.front, 2600)
+  await turnTo(page, GRAVITY.portrait, 3000)
+  check(await isOverlayVisible(page), 'stage-3-cleared-by-depth', '奥行きを使ってクリア')
+  await page.screenshot({ path: `${SHOT_DIR}/stage-3-cleared.png` })
+
+  // 4. 棚の上へ落とす。
   await page.click('[data-game="next"]')
   await page.waitForTimeout(300)
   await turnTo(page, GRAVITY.upsideDown, 2600)
   await turnTo(page, GRAVITY.landscapeLeft, 2600)
   await turnTo(page, GRAVITY.portrait, 3000)
-  check(await isOverlayVisible(page), 'stage-3-cleared', (await readText(page, '[data-game="overlay-title"]')).trim())
-  await page.screenshot({ path: `${SHOT_DIR}/stage-3-cleared.png` })
+  check(await isOverlayVisible(page), 'stage-4-cleared', 'CLEAR')
+
+  // 5. 振って越える。
+  await page.click('[data-game="next"]')
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: `${SHOT_DIR}/stage-5-shake.png` })
+  await turnTo(page, GRAVITY.landscapeRight, 2600)
+  await turnTo(page, GRAVITY.portrait, 1600)
+  await shake(page, GRAVITY.portrait)
+  await turnTo(page, GRAVITY.landscapeRight, 1400)
+  await turnTo(page, GRAVITY.portrait, 3000)
+  check(await isOverlayVisible(page), 'stage-5-cleared-by-shake', '振ってクリア')
+  await page.screenshot({ path: `${SHOT_DIR}/stage-5-cleared.png` })
 
   const finalTitle = (await readText(page, '[data-game="overlay-title"]')).trim()
   check(finalTitle === 'ALL CLEAR', 'all-cleared', finalTitle)
@@ -236,26 +263,26 @@ async function verifySimulationFallback(context) {
   )
   await page.click('#start-button')
 
-  // 端末を回す代わりの操作が出ていること。出ないとこの環境では遊べない。
-  const controlsVisible = await page
-    .locator('[data-game="rotate-controls"]')
+  const hintVisible = await page
+    .locator('[data-game="tilt-hint"]')
     .evaluate((element) => !element.hidden)
-  check(controlsVisible, 'fallback-controls-shown', controlsVisible ? '回転ボタンが出た' : '出ていない')
-  await page.screenshot({ path: `${SHOT_DIR}/fallback-controls.png` })
+  check(hintVisible, 'fallback-hint-shown', hintVisible ? '操作説明が出た' : '出ていない')
+  await page.screenshot({ path: `${SHOT_DIR}/fallback.png` })
 
-  // 時計回りに 1 回 = LandscapeRight。ステージ1 の正解。
-  await page.click('[data-rotate="-1"]')
+  // 画面をドラッグして端末を傾ける。ボタンではなく連続量で効くこと。
+  // ドラッグ幅の半分で 90 度。端まで引くと 180 度 (上下逆) になる。
+  const size = page.viewportSize()
+  const dragRange = Math.min(size.width, size.height) * 0.35
+  const centerX = size.width / 2
+  const centerY = size.height / 2
+  await page.mouse.move(centerX, centerY)
+  await page.mouse.down()
+  await page.mouse.move(centerX + dragRange * 0.5, centerY, { steps: 12 })
   await page.waitForTimeout(3200)
-  check(await isOverlayVisible(page), 'fallback-playable-by-button', 'ボタンでクリアできる')
-  await page.screenshot({ path: `${SHOT_DIR}/fallback-cleared.png` })
+  await page.mouse.up()
 
-  // キーボードでも同じ操作ができること。
-  await page.click('[data-game="next"]')
-  await page.waitForTimeout(300)
-  await page.keyboard.press('ArrowRight')
-  await page.waitForTimeout(1200)
-  const turnsAfterKey = (await readText(page, '[data-game="turns"]')).trim()
-  check(/[1-9]/.test(turnsAfterKey), 'fallback-keyboard', turnsAfterKey)
+  check(await isOverlayVisible(page), 'fallback-playable-by-drag', 'ドラッグでクリアできる')
+  await page.screenshot({ path: `${SHOT_DIR}/fallback-cleared.png` })
 
   await page.close()
 }

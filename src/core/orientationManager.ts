@@ -52,6 +52,8 @@ export class OrientationManager {
   current: OrientationState = OrientationState.Unknown
   rollDegrees = 0
   rawGravity: Vec3 = { x: 0, y: 0, z: 0 }
+  /** 重力を除いた加速度。振る操作の判定に使う。 */
+  linearAcceleration: Vec3 = { x: 0, y: 0, z: 0 }
   flat = false
   attitudeAvailable = false
 
@@ -88,6 +90,7 @@ export class OrientationManager {
     }
 
     this.rawGravity = attitude.gravity
+    this.linearAcceleration = attitude.linearAcceleration
     this.updateSmoothedGravity(attitude.gravity, deltaSeconds)
     this.updateOrientation(deltaSeconds)
   }

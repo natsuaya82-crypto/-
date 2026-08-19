@@ -23,11 +23,8 @@
         <button type="button" class="game-retry" data-game="retry" data-i18n="ui.retry"></button>
       </header>
 
-      <!-- センサーが使えない環境で「端末を回す」の代わりになる操作。 -->
-      <div class="game-rotate" data-game="rotate-controls" hidden>
-        <button type="button" data-rotate="1" aria-label="Rotate counter-clockwise">&#8634;</button>
-        <button type="button" data-rotate="-1" aria-label="Rotate clockwise">&#8635;</button>
-      </div>
+      <!-- センサーが使えない環境向けの操作説明。実機では隠す。 -->
+      <p class="game-tilt-hint" data-game="tilt-hint" data-i18n="ui.tiltHint" hidden></p>
 
       <div class="game-overlay" data-game="overlay" hidden>
         <p class="game-overlay-title" data-game="overlay-title"></p>

@@ -9,7 +9,7 @@
  */
 const ja = {
   'start.title': 'Gravity Room',
-  'start.description': '端末そのものを回して、玉をゴールへ運ぼう。',
+  'start.description': '端末そのものを傾けて、玉をゴールへ運ぼう。振ると跳ねる。',
   'start.button': 'タップして開始',
   'start.continueSimulated': 'シミュレーションで続ける',
 
@@ -21,13 +21,14 @@ const ja = {
   'ui.allCleared': 'ALL CLEAR',
   'ui.allClearedNote': '今あるステージはここまで。まだ増えます。',
   'ui.replay': '最初から',
+  'ui.tiltHint': '画面をドラッグして端末を傾ける / スペースキーで振る',
 
   'sensor.checking': 'センサーを確認しています…',
   'sensor.unsupported': 'この環境にはモーションセンサーがありません。',
   'sensor.noData': 'センサーから値が届きませんでした。',
   'sensor.denied': 'モーションセンサーの利用が許可されませんでした',
   'sensor.startFailed': 'センサーを開始できませんでした',
-  'sensor.fallbackNotice': 'シミュレーションで動作します。画面のボタンで姿勢を切り替えられます。',
+  'sensor.fallbackNotice': '画面のドラッグで端末を傾ける代わりになります。',
   'sensor.embeddedHint': 'ブラウザで直接開くとセンサーが使えます。',
 
   'hud.caption': 'ORIENTATION STATE',
@@ -47,7 +48,7 @@ export type MessageKey = keyof typeof ja
 
 const en: Record<MessageKey, string> = {
   'start.title': 'Gravity Room',
-  'start.description': 'Turn the phone itself to roll the ball into the goal.',
+  'start.description': 'Tilt the phone itself to roll the ball into the goal. Shake to hop.',
   'start.button': 'Tap to start',
   'start.continueSimulated': 'Continue with simulation',
 
@@ -59,13 +60,14 @@ const en: Record<MessageKey, string> = {
   'ui.allCleared': 'ALL CLEAR',
   'ui.allClearedNote': "That's every stage for now. More are coming.",
   'ui.replay': 'Play again',
+  'ui.tiltHint': 'Drag to tilt the device / press Space to shake',
 
   'sensor.checking': 'Checking the sensor…',
   'sensor.unsupported': 'No motion sensor is available here.',
   'sensor.noData': 'The sensor did not report any values.',
   'sensor.denied': 'Permission to use the motion sensor was denied',
   'sensor.startFailed': 'Could not start the sensor',
-  'sensor.fallbackNotice': 'Running in simulation. Use the buttons to switch orientation.',
+  'sensor.fallbackNotice': 'Drag on the screen instead of tilting the device.',
   'sensor.embeddedHint': 'Open this page directly in a browser to use the sensor.',
 
   'hud.caption': 'ORIENTATION STATE',

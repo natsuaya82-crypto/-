@@ -5,8 +5,6 @@ export interface GameUiCallbacks {
   onRetry(): void
   onNext(): void
   onReplayFromStart(): void
-  /** 端末を回す操作の代替。steps が正で反時計回り、負で時計回り。 */
-  onRotate(steps: number): void
 }
 
 /**
@@ -22,7 +20,7 @@ export class GameUi {
   private readonly overlayTitle: HTMLElement
   private readonly overlayNote: HTMLElement
   private readonly nextButton: HTMLButtonElement
-  private readonly rotateControls: HTMLElement
+  private readonly tiltHint: HTMLElement
 
   private readonly t: (key: MessageKey) => string
   private lastRenderedKey = ''
@@ -49,34 +47,15 @@ export class GameUi {
       callbacks.onNext()
     })
 
-    this.rotateControls = root.querySelector<HTMLElement>('[data-game="rotate-controls"]')!
-    for (const button of this.rotateControls.querySelectorAll<HTMLButtonElement>('[data-rotate]')) {
-      const steps = Number(button.dataset.rotate)
-      button.addEventListener('click', () => callbacks.onRotate(steps))
-    }
-
-    // センサーの無い環境ではキーボードのほうが速い。左右キーを回転に割り当てる。
-    window.addEventListener('keydown', (event) => {
-      if (this.rotateControls.hidden) {
-        return
-      }
-      if (event.key === 'ArrowLeft') {
-        callbacks.onRotate(1)
-      } else if (event.key === 'ArrowRight') {
-        callbacks.onRotate(-1)
-      } else {
-        return
-      }
-      event.preventDefault()
-    })
+    this.tiltHint = root.querySelector<HTMLElement>('[data-game="tilt-hint"]')!
   }
 
   /**
-   * 端末を回す代わりの操作を出すかどうか。
-   * センサーが使えているときは実機の動作を邪魔しないよう隠す。
+   * センサーが無い環境向けの操作説明を出すかどうか。
+   * 実機ではセンサーが本物なので隠す。
    */
-  setRotateControlsVisible(visible: boolean): void {
-    this.rotateControls.hidden = !visible
+  setTiltHintVisible(visible: boolean): void {
+    this.tiltHint.hidden = !visible
   }
 
   update(progress: StageProgress, isLastStage: boolean): void {

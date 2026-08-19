@@ -30,8 +30,10 @@ export interface PhysicsSettings {
 
 export const DEFAULT_PHYSICS: PhysicsSettings = {
   restitution: 0.18,
-  frictionRetentionPerSecond: 0.02,
-  dragRetentionPerSecond: 0.6,
+  // 摩擦が強すぎると玉が這うようにしか動かず、傾けた量が結果に出ない。
+  // 斜め 45 度でも部屋を横切れる程度に緩めてある。
+  frictionRetentionPerSecond: 0.25,
+  dragRetentionPerSecond: 0.75,
   maxSpeed: 24,
   sleepSpeed: 0.05,
 }
@@ -145,8 +147,9 @@ export interface StepResult {
 
 /**
  * 固定間隔 1 ステップぶん進める。
- * ボールは常に z = 0 の面に拘束する。重力は画面平面内でしか回らないため、
- * 奥行き方向の運動は挙動を読みにくくするだけで得るものがない。
+ *
+ * 3 次元で解く。端末を手前や奥へ倒せば奥行き方向にも力がかかり、
+ * 斜めに傾ければ斜めに転がる。傾けた量がそのまま結果に出る。
  */
 export function stepOnce(
   ball: Ball,
@@ -164,8 +167,6 @@ export function stepOnce(
   }
 
   ball.position = add(ball.position, scale(ball.velocity, dt))
-  ball.position.z = 0
-  ball.velocity.z = 0
 
   let contacted = false
   for (const box of boxes) {
@@ -204,7 +205,7 @@ export class PhysicsWorld {
   }
 
   reset(position: Vec3): void {
-    this.ball.position = { ...position, z: 0 }
+    this.ball.position = { ...position }
     this.ball.velocity = { x: 0, y: 0, z: 0 }
     this.accumulator = 0
   }

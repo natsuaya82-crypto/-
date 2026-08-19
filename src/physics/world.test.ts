@@ -88,14 +88,24 @@ describe('落下と静止', () => {
     expect(ball.position.y).toBeGreaterThan(-2)
   })
 
-  it('z 平面から外れない', () => {
+  it('奥行き方向にも力がかかる', () => {
+    // 3 次元で解く。斜めに傾ければ斜めに、手前に倒せば奥行き方向にも動く。
     const ball = makeBall({ x: 0, y: 3, z: 0 })
     const world = new PhysicsWorld(ball, [FLOOR])
 
-    simulate(world, { x: 1, y: -9.81, z: 5 }, 2)
+    simulate(world, { x: 1, y: -9.81, z: 5 }, 0.5)
 
-    expect(ball.position.z).toBe(0)
-    expect(ball.velocity.z).toBe(0)
+    expect(ball.position.z).toBeGreaterThan(0.2)
+    expect(ball.position.x).toBeGreaterThan(0)
+  })
+
+  it('斜めの重力では x と y の比がそのまま軌跡に出る', () => {
+    const ball = makeBall({ x: 0, y: 0, z: 0 })
+    // 箱を置かず、自由落下だけを見る。
+    simulate(new PhysicsWorld(ball, []), { x: 4.905, y: -9.81, z: 0 }, 0.4)
+
+    // x 方向の加速度は y の半分。移動量も半分になる。
+    expect(ball.position.x).toBeCloseTo(-ball.position.y / 2, 3)
   })
 })
 

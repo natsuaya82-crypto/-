@@ -5,6 +5,15 @@ import { STAGES, collidersFor, type StageDefinition } from './definitions'
 /** ゴール内にこの秒数とどまったらクリア。通り抜けただけでは成立させない。 */
 const CLEAR_DWELL_SECONDS = 0.35
 
+/**
+ * 振ったときに玉へ加える速度 (m/s)。重力と反対向きに働く。
+ *
+ * 傾けるだけでは越えられない段差を、もう一段の操作で越えられるようにする。
+ * 大きすぎると何でも飛び越えられてパズルが成立しないので、
+ * 部屋の 1/3 ほどの高さに届く程度に抑えている。
+ */
+const SHAKE_IMPULSE_SPEED = 7.5
+
 export type StageStatus = 'playing' | 'cleared'
 
 export interface StageProgress {
@@ -14,6 +23,8 @@ export interface StageProgress {
   status: StageStatus
   /** そのステージで端末を回した回数。 */
   rotations: number
+  /** そのステージで端末を振った回数。 */
+  shakes: number
 }
 
 /**
@@ -28,6 +39,7 @@ export class StageManager {
   private status: StageStatus = 'playing'
   private dwellSeconds = 0
   private rotations = 0
+  private shakes = 0
 
   readonly ball: Ball
   readonly world: PhysicsWorld
@@ -61,6 +73,7 @@ export class StageManager {
       stage: this.current,
       status: this.status,
       rotations: this.rotations,
+      shakes: this.shakes,
     }
   }
 
@@ -94,6 +107,7 @@ export class StageManager {
     this.status = 'playing'
     this.dwellSeconds = 0
     this.rotations = 0
+    this.shakes = 0
   }
 
   /** 最後のステージなら何もしない。 */
@@ -109,6 +123,31 @@ export class StageManager {
     if (this.status === 'playing') {
       this.rotations++
     }
+  }
+
+  /**
+   * 端末を振ったときに呼ぶ。重力と反対向きに玉を弾く。
+   *
+   * 接地しているかは問わない。空中で二段目を出せるほうが操作していて楽しく、
+   * ステージ側は「振っても届かない配置」で難度を作れるため。
+   */
+  shake(gravityDirection: Vec3): void {
+    if (this.status !== 'playing') {
+      return
+    }
+
+    const magnitude = Math.hypot(gravityDirection.x, gravityDirection.y, gravityDirection.z)
+    if (magnitude < 1e-6) {
+      return
+    }
+
+    const scale = -SHAKE_IMPULSE_SPEED / magnitude
+    this.ball.velocity = {
+      x: this.ball.velocity.x + gravityDirection.x * scale,
+      y: this.ball.velocity.y + gravityDirection.y * scale,
+      z: this.ball.velocity.z + gravityDirection.z * scale,
+    }
+    this.shakes++
   }
 
   update(deltaSeconds: number, gravity: Vec3): void {
@@ -141,6 +180,7 @@ export class StageManager {
     const { position, radius } = this.current.goal
     const dx = this.ball.position.x - position.x
     const dy = this.ball.position.y - position.y
-    return Math.hypot(dx, dy) <= radius + this.ball.radius
+    const dz = this.ball.position.z - position.z
+    return Math.hypot(dx, dy, dz) <= radius + this.ball.radius
   }
 }

@@ -73,27 +73,19 @@ body {
   pointer-events: auto;
 }
 
-.game-rotate {
+.game-tilt-hint {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--safe-bottom) + 22px);
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  pointer-events: auto;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--safe-bottom) + 20px);
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
 }
 
-.game-rotate[hidden] {
+.game-tilt-hint[hidden] {
   display: none;
-}
-
-.game-rotate button {
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  font-size: 30px;
-  line-height: 1;
 }
 
 .game-overlay {

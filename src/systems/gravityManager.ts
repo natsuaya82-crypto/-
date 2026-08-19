@@ -1,12 +1,18 @@
 import type { OrientationManager } from '../core/orientationManager'
-import { rollToDownDirection, slerpDirection, smoothingFactor, stateToGravity, type Vec3 } from '../core/orientation'
+import { slerpDirection, smoothingFactor, stateToGravity, type Vec3 } from '../core/orientation'
 
-/** 重力方向の追従方法。 */
+/** 重力の決め方。 */
 export type GravityFollowMode =
-  /** 確定した OrientationState の 4 方向にスナップする。パズルとして挙動が読みやすい。 */
+  /**
+   * 端末の傾きにそのまま追従する。斜めに傾ければ斜めに、
+   * 手前に倒せば奥行き方向にも力がかかる。既定。
+   */
+  | 'continuous'
+  /**
+   * 4 方向にスナップする。挙動は読みやすいが、傾けた量が結果に出ない。
+   * 特定のギミック用に残してある。
+   */
   | 'snapToState'
-  /** 実際の傾き角にそのまま追従する。演出寄りの挙動。 */
-  | 'followRawTilt'
 
 export interface GravityManagerOptions {
   followMode?: GravityFollowMode
@@ -17,19 +23,17 @@ export interface GravityManagerOptions {
 }
 
 const DEFAULT_OPTIONS: Required<GravityManagerOptions> = {
-  followMode: 'snapToState',
+  followMode: 'continuous',
   magnitude: 9.81,
-  rotationHalfLifeSeconds: 0.08,
+  // 連続追従では小さめにする。大きいと傾けてから効き始めるまでが鈍く感じる。
+  rotationHalfLifeSeconds: 0.05,
 }
 
 /**
- * 端末姿勢からゲーム世界の重力方向を決めるシステム。
+ * 端末の姿勢からゲーム世界の重力を決める。
  *
- * Phase 0 での責務はここまでに限定する:
- *   OrientationManager の結果を「世界座標の重力ベクトル」に変換して公開する。
- *
- * 実際に物を落とす・プレイヤーを動かすのは Phase 1 以降の責務。
- * ここでは値を提供するだけに留める。
+ * 端末ローカルの重力ベクトルが、そのまま世界の重力になる。
+ * 世界は端末に固定されているので、変換は要らない。
  */
 export class GravityManager {
   private readonly orientationManager: OrientationManager
@@ -56,9 +60,11 @@ export class GravityManager {
   }
 
   private resolveTargetDirection(): Vec3 {
-    if (this.options.followMode === 'followRawTilt') {
-      return rollToDownDirection(this.orientationManager.rollDegrees)
+    if (this.options.followMode === 'snapToState') {
+      return stateToGravity(this.orientationManager.current)
     }
-    return stateToGravity(this.orientationManager.current)
+
+    // 平滑化済みの重力ベクトルをそのまま使う。奥行き成分も含めて 3 次元で効く。
+    return this.orientationManager.gravity
   }
 }

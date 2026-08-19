@@ -8,12 +8,21 @@ import { MIN_VALID_GRAVITY_MAGNITUDE, normalize, stateToGravity, type Orientatio
  * 端末を Portrait で立てて持つと gravity ≒ (0, -1, 0) になる。
  */
 export interface DeviceAttitude {
+  /** 重力の向き (単位ベクトル)。端末をどう持っているか。 */
   gravity: Vec3
+  /**
+   * 重力を除いた加速度 (m/s^2)。端末をどう動かしたか。
+   * 振る・弾く・叩くといった、姿勢とは別の入力の源になる。
+   */
+  linearAcceleration: Vec3
   available: boolean
 }
 
+const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
+
 export const UNAVAILABLE_ATTITUDE: DeviceAttitude = {
-  gravity: { x: 0, y: 0, z: 0 },
+  gravity: ZERO,
+  linearAcceleration: ZERO,
   available: false,
 }
 
@@ -108,6 +117,11 @@ export class DeviceMotionAttitudeProvider implements AttitudeProvider {
     const sign = this.signConvention === 'ios' ? 1 : -1
     this.latest = {
       gravity: { x: normalized.x * sign, y: normalized.y * sign, z: normalized.z * sign },
+      linearAcceleration: {
+        x: (linear?.x ?? 0) * sign,
+        y: (linear?.y ?? 0) * sign,
+        z: (linear?.z ?? 0) * sign,
+      },
       available: true,
     }
   }
@@ -168,50 +182,73 @@ export class DeviceMotionAttitudeProvider implements AttitudeProvider {
   }
 }
 
+const DEGREES_TO_RADIANS = Math.PI / 180
+
+/** 画面を端から端までなぞったときに、端末を何度まで傾けたことにするか。 */
+const MAX_ROLL_DEGREES = 180
+const MAX_PITCH_DEGREES = 80
+
 /**
- * センサーを使わず、指定された姿勢をそのまま返す実装。
- * PC ブラウザでの開発と、センサーが取れない実機での手動確認に使う。
+ * センサーを使わず、指定された傾きを返す実装。
+ *
+ * 4 方向から選ばせるのではなく、実機と同じ「どれだけ傾けたか」を連続値で持つ。
+ * PC ブラウザでは画面のドラッグをそのままこの傾きに割り当てる。
  */
 export class SimulatedAttitudeProvider implements AttitudeProvider {
   readonly sourceName = 'Simulated'
 
-  /** 端末を反時計回りに 90 度ずつ回したときの並び。 */
-  private static readonly ROTATION_ORDER: readonly OrientationState[] = [
-    'Portrait',
-    'LandscapeLeft',
-    'PortraitUpsideDown',
-    'LandscapeRight',
-  ] as OrientationState[]
+  /** 横方向の傾き。-1 〜 1。 */
+  private roll = 0
+  /** 手前と奥への傾き。-1 〜 1。 */
+  private pitch = 0
 
-  private state: OrientationState
-
-  constructor(initialState: OrientationState) {
-    this.state = initialState
-  }
-
-  /**
-   * 端末を回す操作をそのまま再現する。
-   * steps が正で反時計回り、負で時計回り。
-   *
-   * 絶対的な姿勢を選ばせるより、実機で行う「回す」という動作に
-   * 対応させたほうが、センサーが無い環境でも同じ感覚で遊べる。
-   */
-  rotate(steps: number): void {
-    const order = SimulatedAttitudeProvider.ROTATION_ORDER
-    const currentIndex = Math.max(order.indexOf(this.state), 0)
-    const nextIndex = (((currentIndex + steps) % order.length) + order.length) % order.length
-    this.state = order[nextIndex]!
+  constructor(initialState?: OrientationState) {
+    if (initialState) {
+      this.setState(initialState)
+    }
   }
 
   async start(): Promise<void> {}
 
   stop(): void {}
 
-  read(): DeviceAttitude {
-    return { gravity: stateToGravity(this.state), available: true }
+  /**
+   * 傾きを直接指定する。値は -1 〜 1 に丸める。
+   * 画面のドラッグ量をそのまま渡す想定。
+   */
+  setTilt(roll: number, pitch: number): void {
+    this.roll = clampToUnit(roll)
+    this.pitch = clampToUnit(pitch)
   }
 
-  setState(state: OrientationState): void {
-    this.state = state
+  getTilt(): { roll: number; pitch: number } {
+    return { roll: this.roll, pitch: this.pitch }
   }
+
+  /** 4 方向のいずれかに相当する傾きへ合わせる。テストと初期値の指定に使う。 */
+  setState(state: OrientationState): void {
+    const gravity = stateToGravity(state)
+    // stateToGravity は画面平面内のベクトルなので、そのまま逆算できる。
+    this.roll = clampToUnit(Math.atan2(gravity.x, -gravity.y) / Math.PI)
+    this.pitch = 0
+  }
+
+  read(): DeviceAttitude {
+    const rollRadians = this.roll * MAX_ROLL_DEGREES * DEGREES_TO_RADIANS
+    const pitchRadians = this.pitch * MAX_PITCH_DEGREES * DEGREES_TO_RADIANS
+
+    // 立てて持った状態 (0, -1, 0) を、横方向と奥行き方向に順に倒す。
+    const cosPitch = Math.cos(pitchRadians)
+    const gravity = {
+      x: Math.sin(rollRadians) * cosPitch,
+      y: -Math.cos(rollRadians) * cosPitch,
+      z: Math.sin(pitchRadians),
+    }
+
+    return { gravity: normalize(gravity) ?? { x: 0, y: -1, z: 0 }, linearAcceleration: ZERO, available: true }
+  }
+}
+
+function clampToUnit(value: number): number {
+  return Math.min(1, Math.max(-1, value))
 }

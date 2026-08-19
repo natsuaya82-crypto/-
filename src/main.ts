@@ -11,6 +11,8 @@ import { GravityManager } from './systems/gravityManager'
 import { GameScene } from './scene/gameScene'
 import { StageManager } from './stages/stageManager'
 import { GameUi } from './ui/gameUi'
+import { TiltControls } from './ui/tiltControls'
+import { ShakeDetector } from './core/shake'
 import { Hud } from './ui/hud'
 import { applyStaticTranslations, createTranslator, detectLocale } from './i18n'
 import { getScreenRotationDegrees, observeScreenRotation } from './core/screenRotation'
@@ -38,6 +40,7 @@ const startButton = document.querySelector<HTMLButtonElement>('#start-button')!
 const startMessage = document.querySelector<HTMLElement>('#start-message')!
 
 const simulatedProvider = new SimulatedAttitudeProvider(OrientationState.Portrait)
+const shakeDetector = new ShakeDetector()
 let motionProvider: DeviceMotionAttitudeProvider | null = null
 
 const orientationManager = new OrientationManager(simulatedProvider)
@@ -49,14 +52,24 @@ const scene = new GameScene(canvas)
 orientationManager.onOrientationChanged(() => stageManager.countRotation())
 
 const gameUi = new GameUi(gameRoot, t, {
-  onRetry: () => stageManager.restart(),
+  onRetry: () => {
+    shakeDetector.reset()
+    stageManager.restart()
+  },
   onNext: () => stageManager.advance(),
   onReplayFromStart: () => stageManager.load(0),
-  onRotate: (steps) => simulatedProvider.rotate(steps),
 })
 
-// センサーが取れている間は実機の姿勢がそのまま入力になるので、代替操作は出さない。
-gameUi.setRotateControlsVisible(true)
+// センサーが無い環境では、画面のドラッグを傾きに割り当てる。
+// 4 方向のボタンでは「傾けた量が結果に出る」という肝心の部分が再現できない。
+//
+// 受け口は盤面 (canvas) に限る。document.body に付けると、ポインタキャプチャが
+// ボタンのクリックまで飲み込んでしまい、UI が反応しなくなる。
+const tiltControls = new TiltControls(canvas, {
+  onTilt: (roll, pitch) => simulatedProvider.setTilt(roll, pitch),
+  onShake: () => stageManager.shake(gravityManager.gravity),
+})
+tiltControls.setEnabled(true)
 
 stageManager.onStageLoaded((progress) => scene.loadStage(progress.stage))
 
@@ -146,7 +159,9 @@ async function startSensor(): Promise<void> {
 
   motionProvider = provider
   useProvider(provider)
-  gameUi.setRotateControlsVisible(false)
+  // 実機ではセンサーが本物なので、代替操作は止める。
+  tiltControls.setEnabled(false)
+  gameUi.setTiltHintVisible(false)
 }
 
 startButton.addEventListener('click', async () => {
@@ -163,6 +178,7 @@ startButton.addEventListener('click', async () => {
   startButton.textContent = t('start.continueSimulated')
   startButton.onclick = () => {
     startOverlay.hidden = true
+    gameUi.setTiltHintVisible(true)
   }
 })
 
@@ -197,6 +213,12 @@ function tick(timestamp: number): void {
 
   orientationManager.update(deltaSeconds)
   gravityManager.update(deltaSeconds)
+
+  // 端末を振ったら玉を弾く。姿勢とは別の入力として扱う。
+  if (shakeDetector.update(orientationManager.linearAcceleration, deltaSeconds)) {
+    stageManager.shake(gravityManager.gravity)
+  }
+
   stageManager.update(deltaSeconds, gravityManager.gravity)
 
   const progress = stageManager.progress

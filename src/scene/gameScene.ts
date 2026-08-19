@@ -14,6 +14,7 @@ const COLORS = {
   wallIdle: 0x2a3145,
   wallDown: 0x3f5570,
   block: 0x4d566f,
+  blockEdge: 0x8f9bbd,
   ball: 0x6ee7a8,
   goal: 0xffc861,
   goalCleared: 0x6ee7a8,
@@ -41,6 +42,8 @@ export class GameScene {
   private readonly stageGroup = new THREE.Group()
 
   private ball: THREE.Mesh | null = null
+  private ballShadow: THREE.Mesh | null = null
+  private shadowDepth = 2.2
   private goalRing: THREE.Mesh | null = null
   private walls: THREE.Mesh[] = []
   private boundingRadius = 5.3
@@ -69,16 +72,17 @@ export class GameScene {
     this.clearStage()
 
     const half = stage.halfSize
+    const depth = stage.halfDepth
     // 部屋は正面から見た正方形なので、対角ではなく辺の半分に画角を合わせる。
     // 対角で合わせると 4 割ほど小さく映って、盤面が読み取りにくくなる。
     this.boundingRadius = half + WALL_VISUAL_THICKNESS
 
-    this.stageGroup.add(this.createFloorPlane(half))
-    this.stageGroup.add(this.createOutline(half))
-    this.walls = this.createWalls(half)
+    this.stageGroup.add(this.createBackPlane(half, depth))
+    this.walls = this.createWalls(half, depth)
     for (const wall of this.walls) {
       this.stageGroup.add(wall)
     }
+    this.stageGroup.add(this.createRoomOutline(half, depth))
 
     for (const box of stage.blocks) {
       this.stageGroup.add(this.createBlock(box.center, box.half))
@@ -90,12 +94,26 @@ export class GameScene {
     this.ball = this.createBall(stage.ballRadius)
     this.stageGroup.add(this.ball)
 
+    // 奥行きが読み取れるよう、玉の真下 (奥の壁) に影を落とす。
+    this.ballShadow = this.createBallShadow(stage.ballRadius, depth)
+    this.stageGroup.add(this.ballShadow)
+
     this.resize(this.topInsetPixels)
   }
 
   update(ballPosition: Vec3, gravityDirection: Vec3, cleared: boolean): void {
     if (this.ball) {
-      this.ball.position.set(ballPosition.x, ballPosition.y, 0)
+      this.ball.position.set(ballPosition.x, ballPosition.y, ballPosition.z)
+    }
+
+    if (this.ballShadow) {
+      this.ballShadow.position.x = ballPosition.x
+      this.ballShadow.position.y = ballPosition.y
+      // 手前にあるほど影を小さく薄くする。奥行きの手がかりになる。
+      const nearness = (ballPosition.z + this.shadowDepth) / (this.shadowDepth * 2)
+      const scale = 1.1 - Math.min(Math.max(nearness, 0), 1) * 0.45
+      this.ballShadow.scale.setScalar(scale)
+      ;(this.ballShadow.material as THREE.MeshBasicMaterial).opacity = 0.42 * scale
     }
 
     if (this.goalRing) {
@@ -178,32 +196,35 @@ export class GameScene {
     }
     this.walls = []
     this.ball = null
+    this.ballShadow = null
     this.goalRing = null
   }
 
-  private createFloorPlane(half: number): THREE.Mesh {
-    // ボールとブロックの背面。奥行きの手がかりになる。
-    return new THREE.Mesh(
+  private createBackPlane(half: number, depth: number): THREE.Mesh {
+    const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(half * 2, half * 2),
       new THREE.MeshStandardMaterial({ color: COLORS.roomFace, roughness: 1, metalness: 0 }),
-    ).translateZ(-0.6)
+    )
+    mesh.position.z = -depth
+    return mesh
   }
 
-  private createOutline(half: number): THREE.LineSegments {
+  /** 部屋の輪郭。奥行きのある箱として見せる。 */
+  private createRoomOutline(half: number, depth: number): THREE.LineSegments {
     return new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.PlaneGeometry(half * 2, half * 2)),
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(half * 2, half * 2, depth * 2)),
       new THREE.LineBasicMaterial({ color: COLORS.edge }),
     )
   }
 
-  private createWalls(half: number): THREE.Mesh[] {
+  private createWalls(half: number, depth: number): THREE.Mesh[] {
     const outer = half + WALL_VISUAL_THICKNESS / 2
 
     return WALL_DIRECTIONS.map((direction) => {
       const horizontal = direction.y !== 0
       const geometry = horizontal
-        ? new THREE.BoxGeometry(half * 2 + WALL_VISUAL_THICKNESS * 2, WALL_VISUAL_THICKNESS, 1.2)
-        : new THREE.BoxGeometry(WALL_VISUAL_THICKNESS, half * 2 + WALL_VISUAL_THICKNESS * 2, 1.2)
+        ? new THREE.BoxGeometry(half * 2 + WALL_VISUAL_THICKNESS * 2, WALL_VISUAL_THICKNESS, depth * 2)
+        : new THREE.BoxGeometry(WALL_VISUAL_THICKNESS, half * 2 + WALL_VISUAL_THICKNESS * 2, depth * 2)
 
       const mesh = new THREE.Mesh(
         geometry,
@@ -216,10 +237,36 @@ export class GameScene {
 
   private createBlock(center: Vec3, half: Vec3): THREE.Mesh {
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(half.x * 2, half.y * 2, 1.2),
-      new THREE.MeshStandardMaterial({ color: COLORS.block, roughness: 0.75, metalness: 0 }),
+      new THREE.BoxGeometry(half.x * 2, half.y * 2, half.z * 2),
+      // 半透明にする。奥行きの一部だけを塞ぐ障害物では、
+      // 裏に通り道があることが見えないと解きようがない。
+      new THREE.MeshStandardMaterial({
+        color: COLORS.block,
+        roughness: 0.75,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.62,
+      }),
     )
-    mesh.position.set(center.x, center.y, 0)
+    mesh.position.set(center.x, center.y, center.z)
+
+    // 輪郭を足して、透けていても形が分かるようにする。
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(mesh.geometry),
+      new THREE.LineBasicMaterial({ color: COLORS.blockEdge }),
+    )
+    mesh.add(edges)
+    return mesh
+  }
+
+  /** 奥の壁に落ちる玉の影。奥行きを読み取る手がかり。 */
+  private createBallShadow(radius: number, depth: number): THREE.Mesh {
+    this.shadowDepth = depth
+    const mesh = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 28),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 }),
+    )
+    mesh.position.z = -depth + 0.02
     return mesh
   }
 
@@ -228,7 +275,7 @@ export class GameScene {
       new THREE.RingGeometry(radius - GOAL_RING_THICKNESS, radius, 48),
       new THREE.MeshBasicMaterial({ color: COLORS.goal, side: THREE.DoubleSide }),
     )
-    mesh.position.set(position.x, position.y, -0.3)
+    mesh.position.set(position.x, position.y, position.z)
     return mesh
   }
 

@@ -15,6 +15,8 @@ import {
   type Vec3,
 } from './orientation'
 
+const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
+
 const ALL_STATES = [
   OrientationState.Portrait,
   OrientationState.LandscapeLeft,
@@ -163,11 +165,11 @@ describe('OrientationManager', () => {
     expect(manager.current).toBe(OrientationState.LandscapeRight)
 
     // 画面をほぼ真上に向けた状態 (平置き)。
-    const flatProvider: { sourceName: string; start: () => Promise<void>; stop: () => void; read: () => { gravity: Vec3; available: boolean } } = {
+    const flatProvider = {
       sourceName: 'flat',
       start: async () => {},
       stop: () => {},
-      read: () => ({ gravity: { x: 0, y: 0, z: -1 }, available: true }),
+      read: () => ({ gravity: { x: 0, y: 0, z: -1 }, linearAcceleration: ZERO, available: true }),
     }
     manager.setProvider(flatProvider)
     advance(manager, 1)
@@ -181,7 +183,7 @@ describe('OrientationManager', () => {
       sourceName: 'none',
       start: async () => {},
       stop: () => {},
-      read: () => ({ gravity: { x: 0, y: 0, z: 0 }, available: false }),
+      read: () => ({ gravity: ZERO, linearAcceleration: ZERO, available: false }),
     })
 
     advance(manager, 1)
@@ -262,37 +264,63 @@ describe('補助関数', () => {
   })
 })
 
-describe('シミュレーションの回転操作', () => {
-  it('反時計回りに 1 回で Portrait から LandscapeLeft へ進む', () => {
-    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
-    provider.rotate(1)
-    expect(rollToNearestState(gravityToRollDegrees(provider.read().gravity))).toBe(
-      OrientationState.LandscapeLeft,
-    )
+describe('シミュレーションの傾き', () => {
+  const stateOf = (provider: SimulatedAttitudeProvider): OrientationState =>
+    rollToNearestState(gravityToRollDegrees(provider.read().gravity))
+
+  it('傾きを 0 にすると立てて持った状態になる', () => {
+    const provider = new SimulatedAttitudeProvider()
+    provider.setTilt(0, 0)
+    expect(provider.read().gravity.y).toBeCloseTo(-1, 6)
+    expect(stateOf(provider)).toBe(OrientationState.Portrait)
   })
 
-  it('時計回りに 1 回で Portrait から LandscapeRight へ進む', () => {
-    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
-    provider.rotate(-1)
-    expect(rollToNearestState(gravityToRollDegrees(provider.read().gravity))).toBe(
-      OrientationState.LandscapeRight,
-    )
+  it('横へ倒すと横向きになる', () => {
+    const provider = new SimulatedAttitudeProvider()
+    provider.setTilt(0.5, 0)
+    expect(stateOf(provider)).toBe(OrientationState.LandscapeRight)
+
+    provider.setTilt(-0.5, 0)
+    expect(stateOf(provider)).toBe(OrientationState.LandscapeLeft)
   })
 
-  it('4 回まわすと元に戻る', () => {
-    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
-    const before = provider.read().gravity
-    for (let i = 0; i < 4; i++) {
-      provider.rotate(1)
+  it('端まで倒すと上下逆になる', () => {
+    const provider = new SimulatedAttitudeProvider()
+    provider.setTilt(1, 0)
+    expect(stateOf(provider)).toBe(OrientationState.PortraitUpsideDown)
+  })
+
+  it('中途半端な傾きは斜めの重力になる', () => {
+    const provider = new SimulatedAttitudeProvider()
+    provider.setTilt(0.25, 0)
+    const { x, y } = provider.read().gravity
+
+    // 45 度。x と y の大きさがほぼ等しい。
+    expect(x).toBeGreaterThan(0)
+    expect(y).toBeLessThan(0)
+    expect(Math.abs(x)).toBeCloseTo(Math.abs(y), 3)
+  })
+
+  it('手前に倒すと奥行き成分が出る', () => {
+    const provider = new SimulatedAttitudeProvider()
+    provider.setTilt(0, 0.5)
+    expect(provider.read().gravity.z).toBeGreaterThan(0.4)
+  })
+
+  it('範囲外の値は丸められる', () => {
+    const provider = new SimulatedAttitudeProvider()
+    provider.setTilt(5, -5)
+    expect(provider.getTilt()).toEqual({ roll: 1, pitch: -1 })
+  })
+
+  it('重力ベクトルは常に単位ベクトル', () => {
+    const provider = new SimulatedAttitudeProvider()
+    for (let roll = -1; roll <= 1; roll += 0.1) {
+      for (let pitch = -1; pitch <= 1; pitch += 0.25) {
+        provider.setTilt(roll, pitch)
+        const g = provider.read().gravity
+        expect(Math.hypot(g.x, g.y, g.z)).toBeCloseTo(1, 6)
+      }
     }
-    expect(provider.read().gravity).toEqual(before)
-  })
-
-  it('負の方向へまわしても範囲から外れない', () => {
-    const provider = new SimulatedAttitudeProvider(OrientationState.Portrait)
-    provider.rotate(-5)
-    expect(rollToNearestState(gravityToRollDegrees(provider.read().gravity))).toBe(
-      OrientationState.LandscapeRight,
-    )
   })
 })
