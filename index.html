@@ -20,8 +20,30 @@
       <header class="game-bar">
         <span class="game-stage" data-game="stage"></span>
         <span class="game-turns" data-game="turns"></span>
+        <!-- センサーが繋がっているかを常に出す。黙って代替動作に落ちると原因が分からない。 -->
+        <button type="button" class="game-status" data-game="status">
+          <span class="game-status-dot" data-game="status-dot"></span>
+          <span data-game="status-label"></span>
+        </button>
         <button type="button" class="game-retry" data-game="retry" data-i18n="ui.retry"></button>
       </header>
+
+      <div class="game-diagnostics" data-game="diagnostics" hidden>
+        <p class="game-diagnostics-title" data-i18n="diag.title"></p>
+        <dl class="game-diagnostics-rows">
+          <dt data-i18n="diag.source"></dt><dd data-diag="source">—</dd>
+          <dt data-i18n="diag.gravity"></dt><dd data-diag="gravity">—</dd>
+        </dl>
+        <p class="game-diagnostics-note" data-i18n="diag.movingHint"></p>
+        <div data-diag="causes" hidden>
+          <p class="game-diagnostics-title" data-i18n="diag.simulatedCause"></p>
+          <p class="game-diagnostics-note" data-i18n="diag.causeEmbedded"></p>
+          <p class="game-diagnostics-note" data-i18n="diag.causeDenied"></p>
+          <p class="game-diagnostics-note" data-i18n="diag.causeHttp"></p>
+          <button type="button" class="game-diagnostics-retry" data-diag="retry" data-i18n="diag.retry"></button>
+        </div>
+        <button type="button" class="game-diagnostics-close" data-diag="close" data-i18n="status.close"></button>
+      </div>
 
       <!-- センサーが使えない環境向けの操作説明。実機では隠す。 -->
       <p class="game-tilt-hint" data-game="tilt-hint" data-i18n="ui.tiltHint" hidden></p>

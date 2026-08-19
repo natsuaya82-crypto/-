@@ -58,6 +58,9 @@ const gameUi = new GameUi(gameRoot, t, {
   },
   onNext: () => stageManager.advance(),
   onReplayFromStart: () => stageManager.load(0),
+  onReconnectSensor: () => {
+    void startSensor()
+  },
 })
 
 // センサーが無い環境では、画面のドラッグを傾きに割り当てる。
@@ -225,6 +228,11 @@ function tick(timestamp: number): void {
   scene.update(stageManager.ball.position, gravityManager.direction, progress.status === 'cleared')
   scene.render()
   gameUi.update(progress, stageManager.isLastStage)
+  gameUi.updateSensorStatus({
+    live: motionProvider !== null && orientationManager.attitudeAvailable,
+    sourceName: orientationManager.sourceName,
+    gravity: orientationManager.gravity,
+  })
   hud?.update(orientationManager, gravityManager)
 
   requestAnimationFrame(tick)

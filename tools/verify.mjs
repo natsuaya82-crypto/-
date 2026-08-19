@@ -128,6 +128,11 @@ async function verifyGameplay(context) {
     .evaluate((element) => element.hidden)
   check(hintHidden, 'tilt-hint-hidden-with-sensor', hintHidden ? '隠れている' : '出たまま')
 
+  // センサーが繋がっていることが画面に出ていること。
+  const statusLive = await page.locator('[data-game="status"]').getAttribute('data-live')
+  const statusLabel = (await readText(page, '[data-game="status-label"]')).trim()
+  check(statusLive === 'true', 'status-shows-live', `${statusLabel} (data-live=${statusLive})`)
+
   await page.screenshot({ path: `${SHOT_DIR}/stage-1-start.png` })
   check(
     (await readText(page, '[data-game="stage"]')).includes('1 / 5'),
@@ -267,6 +272,20 @@ async function verifySimulationFallback(context) {
     .locator('[data-game="tilt-hint"]')
     .evaluate((element) => !element.hidden)
   check(hintVisible, 'fallback-hint-shown', hintVisible ? '操作説明が出た' : '出ていない')
+
+  // センサー未接続がひと目で分かること。黙って代替動作に落ちるのが一番まずい。
+  const statusLive = await page.locator('[data-game="status"]').getAttribute('data-live')
+  const statusLabel = (await readText(page, '[data-game="status-label"]')).trim()
+  check(statusLive === 'false', 'status-shows-no-sensor', `${statusLabel} (data-live=${statusLive})`)
+
+  // タップすると原因と対処が出ること。
+  await page.click('[data-game="status"]')
+  const causesVisible = await page
+    .locator('[data-diag="causes"]')
+    .evaluate((element) => !element.hidden)
+  check(causesVisible, 'diagnostics-shows-causes', causesVisible ? '原因が出た' : '出ていない')
+  await page.screenshot({ path: `${SHOT_DIR}/diagnostics.png` })
+  await page.click('[data-diag="close"]')
   await page.screenshot({ path: `${SHOT_DIR}/fallback.png` })
 
   // 画面をドラッグして端末を傾ける。ボタンではなく連続量で効くこと。
