@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover でノッチ端末でも全画面。ユーザー拡大は無効にする。 -->
@@ -14,34 +14,33 @@
   <body>
     <canvas id="scene"></canvas>
 
+    <!-- 文言は data-i18n をキーに JS から流し込む。HTML には原文を書かない。 -->
     <div id="hud">
-      <p class="hud-caption">ORIENTATION STATE</p>
+      <p class="hud-caption" data-i18n="hud.caption"></p>
       <p class="hud-state" data-hud="state">Unknown</p>
 
       <dl class="hud-rows">
-        <dt>Roll</dt><dd data-row="roll">—</dd>
-        <dt>Source</dt><dd data-row="source">—</dd>
-        <dt>Available</dt><dd data-row="available">—</dd>
-        <dt>Flat</dt><dd data-row="flat">—</dd>
-        <dt>Raw gravity</dt><dd data-row="raw">—</dd>
-        <dt>Smoothed</dt><dd data-row="smoothed">—</dd>
-        <dt>World gravity</dt><dd data-row="world">—</dd>
-        <dt>OS orientation</dt><dd data-row="os">—</dd>
+        <dt data-i18n="hud.roll"></dt><dd data-row="roll">—</dd>
+        <dt data-i18n="hud.source"></dt><dd data-row="source">—</dd>
+        <dt data-i18n="hud.available"></dt><dd data-row="available">—</dd>
+        <dt data-i18n="hud.flat"></dt><dd data-row="flat">—</dd>
+        <dt data-i18n="hud.rawGravity"></dt><dd data-row="raw">—</dd>
+        <dt data-i18n="hud.smoothed"></dt><dd data-row="smoothed">—</dd>
+        <dt data-i18n="hud.worldGravity"></dt><dd data-row="world">—</dd>
+        <dt data-i18n="hud.osOrientation"></dt><dd data-row="os">—</dd>
       </dl>
 
       <div class="hud-simulation" data-hud="simulation" hidden></div>
 
-      <button type="button" class="hud-invert" data-hud="invert">
-        上下が逆に出るときはここをタップ
-      </button>
+      <button type="button" class="hud-invert" data-hud="invert" data-i18n="hud.invert"></button>
     </div>
 
     <div id="start-overlay">
       <div class="start-panel">
-        <h1>Phase 0</h1>
-        <p>端末の姿勢を検出します。</p>
+        <h1 data-i18n="start.title"></h1>
+        <p data-i18n="start.description"></p>
         <!-- iOS はユーザー操作の中でしかモーションセンサーの許可を求められない。 -->
-        <button type="button" id="start-button">タップして開始</button>
+        <button type="button" id="start-button" data-i18n="start.button"></button>
         <p id="start-message"></p>
       </div>
     </div>

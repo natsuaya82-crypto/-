@@ -7,7 +7,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo": "vite build && node tools/build-single-file.mjs",
+    "verify": "node tools/verify-phase0.mjs"
   },
   "repository": {
     "type": "git",

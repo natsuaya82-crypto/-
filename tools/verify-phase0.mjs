@@ -91,24 +91,50 @@ async function main() {
     console.log(`${passed ? 'OK  ' : 'FAIL'} ${testCase.label.padEnd(22)} -> ${actual}`)
   }
 
-  // センサーが無い環境でシミュレーションに落ちるかも確認する。
-  const plain = await browser.newPage()
-  await plain.goto('http://localhost:5199/', { waitUntil: 'networkidle' })
-  await plain.click('#start-button')
-  await plain.waitForFunction(
-    () => document.querySelector('#start-button')?.textContent?.includes('シミュレーション'),
-    undefined,
-    { timeout: 6000 },
-  )
-  await plain.click('#start-button')
-  await plain.click('.hud-simulation button:nth-child(2)')
-  await plain.waitForTimeout(600)
-  const simulatedState = (await plain.locator('[data-hud="state"]').innerText()).trim()
-  if (simulatedState !== 'Landscape Left') {
-    failures.push(`simulation fallback: expected "Landscape Left" but got "${simulatedState}"`)
+  // センサーが無い環境でシミュレーションに落ちるかを、言語ごとに確認する。
+  // 文言が翻訳されていることも同時に見る。
+  const LOCALES = [
+    { lang: 'en', continueLabel: 'Continue with simulation', caption: 'ORIENTATION STATE' },
+    { lang: 'ja', continueLabel: 'シミュレーションで続ける', caption: 'ORIENTATION STATE' },
+  ]
+
+  for (const { lang, continueLabel } of LOCALES) {
+    const plain = await browser.newPage()
+    await plain.goto(`http://localhost:5199/?lang=${lang}`, { waitUntil: 'networkidle' })
+
+    // 開始ボタンの文言が翻訳されているか。
+    const startLabel = (await plain.locator('#start-button').innerText()).trim()
+    const expectedStart = lang === 'ja' ? 'タップして開始' : 'Tap to start'
+    if (startLabel !== expectedStart) {
+      failures.push(`i18n(${lang}) start button: expected "${expectedStart}" but got "${startLabel}"`)
+    }
+
+    await plain.click('#start-button')
+    await plain.waitForFunction(
+      (label) => document.querySelector('#start-button')?.textContent?.includes(label),
+      continueLabel,
+      { timeout: 8000 },
+    )
+    await plain.click('#start-button')
+    await plain.click('.hud-simulation button:nth-child(2)')
+    await plain.waitForTimeout(600)
+
+    const simulatedState = (await plain.locator('[data-hud="state"]').innerText()).trim()
+    const passed = simulatedState === 'Landscape Left'
+    if (!passed) {
+      failures.push(`simulation fallback(${lang}): expected "Landscape Left" but got "${simulatedState}"`)
+    }
+
+    // 反対の言語の文言が混ざっていないか。
+    const bodyText = await plain.locator('#hud').innerText()
+    const japanesePattern = /[぀-ヿ一-龯]/
+    if (lang === 'en' && japanesePattern.test(bodyText)) {
+      failures.push(`i18n(en): HUD に日本語が残っています: ${bodyText.replace(/\s+/g, ' ').slice(0, 80)}`)
+    }
+
+    console.log(`${passed ? 'OK  ' : 'FAIL'} ${`simulation-${lang}`.padEnd(22)} -> ${simulatedState} / "${startLabel}"`)
+    await plain.screenshot({ path: `${SHOT_DIR}/simulation-${lang}.png` })
   }
-  console.log(`${simulatedState === 'Landscape Left' ? 'OK  ' : 'FAIL'} simulation-fallback    -> ${simulatedState}`)
-  await plain.screenshot({ path: `${SHOT_DIR}/simulation-fallback.png` })
 
   await browser.close()
   await server.close()

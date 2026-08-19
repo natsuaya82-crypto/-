@@ -1,10 +1,16 @@
 import './style.css'
-import { DeviceMotionAttitudeProvider, SimulatedAttitudeProvider, type AttitudeProvider } from './core/attitude'
+import {
+  DeviceMotionAttitudeProvider,
+  MotionPermissionDeniedError,
+  SimulatedAttitudeProvider,
+  type AttitudeProvider,
+} from './core/attitude'
 import { OrientationManager } from './core/orientationManager'
 import { OrientationState } from './core/orientation'
 import { GravityManager } from './systems/gravityManager'
 import { Phase0Scene } from './scene/phase0Scene'
 import { Hud } from './ui/hud'
+import { applyStaticTranslations, createTranslator, detectLocale } from './i18n'
 
 /** 1 フレームの経過秒の上限。タブ復帰時の巨大な dt で状態が飛ぶのを防ぐ。 */
 const MAX_DELTA_SECONDS = 0.1
@@ -12,6 +18,11 @@ const MAX_DELTA_SECONDS = 0.1
 /** センサー開始後、最初の値が届くのを待つ上限 (ミリ秒)。 */
 const SENSOR_WARMUP_TIMEOUT_MS = 1500
 const SENSOR_POLL_INTERVAL_MS = 100
+
+const locale = detectLocale()
+const t = createTranslator(locale)
+document.documentElement.lang = locale
+applyStaticTranslations(document, locale)
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const hudRoot = document.querySelector<HTMLElement>('#hud')!
@@ -26,7 +37,7 @@ const orientationManager = new OrientationManager(simulatedProvider)
 const gravityManager = new GravityManager(orientationManager)
 const scene = new Phase0Scene(canvas)
 
-const hud = new Hud(hudRoot, {
+const hud = new Hud(hudRoot, t, {
   onSimulatedStateSelected: (state) => simulatedProvider.setState(state),
   onToggleGravitySign: () => {
     if (!motionProvider) {
@@ -65,11 +76,6 @@ async function waitForAttitude(provider: DeviceMotionAttitudeProvider): Promise<
 }
 
 /**
- * センサーを開始する。
- * iOS 13 以降はユーザー操作の中から requestPermission を呼ぶ必要があるため、
- * 起動直後ではなくタップを受けてから実行する。
- */
-/**
  * 埋め込み (iframe) の中ではモーションセンサーの許可が下りないことがある。
  * その場合は Safari で直接開けば動くので、原因と対処を出す。
  */
@@ -82,12 +88,17 @@ function isEmbedded(): boolean {
   }
 }
 
+/**
+ * センサーを開始する。
+ * iOS 13 以降はユーザー操作の中から requestPermission を呼ぶ必要があるため、
+ * 起動直後ではなくタップを受けてから実行する。
+ */
 async function startSensor(): Promise<void> {
-  const embeddedHint = isEmbedded() ? ' ブラウザで直接開くとセンサーが使えます。' : ''
-  const fallbackNotice = `シミュレーションで動作します。画面のボタンで姿勢を切り替えられます。${embeddedHint}`
+  const embeddedHint = isEmbedded() ? ` ${t('sensor.embeddedHint')}` : ''
+  const fallbackNotice = `${t('sensor.fallbackNotice')}${embeddedHint}`
 
   if (!DeviceMotionAttitudeProvider.isSupported()) {
-    startMessage.textContent = `この環境にはモーションセンサーがありません。${fallbackNotice}`
+    startMessage.textContent = `${t('sensor.unsupported')} ${fallbackNotice}`
     return
   }
 
@@ -95,15 +106,16 @@ async function startSensor(): Promise<void> {
   try {
     await provider.start()
   } catch (error) {
-    const reason = error instanceof Error ? error.message : 'センサーを開始できませんでした'
-    startMessage.textContent = `${reason}。${fallbackNotice}`
+    const reason =
+      error instanceof MotionPermissionDeniedError ? t('sensor.denied') : t('sensor.startFailed')
+    startMessage.textContent = `${reason}. ${fallbackNotice}`
     return
   }
 
-  startMessage.textContent = 'センサーを確認しています…'
+  startMessage.textContent = t('sensor.checking')
   if (!(await waitForAttitude(provider))) {
     provider.stop()
-    startMessage.textContent = `センサーから値が届きませんでした。${fallbackNotice}`
+    startMessage.textContent = `${t('sensor.noData')} ${fallbackNotice}`
     return
   }
 
@@ -121,7 +133,7 @@ startButton.addEventListener('click', async () => {
     return
   }
   startButton.disabled = false
-  startButton.textContent = 'シミュレーションで続ける'
+  startButton.textContent = t('start.continueSimulated')
   startButton.onclick = () => {
     startOverlay.hidden = true
   }

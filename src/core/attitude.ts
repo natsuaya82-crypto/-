@@ -42,6 +42,19 @@ export interface AttitudeProvider {
  */
 export type GravitySignConvention = 'ios' | 'spec'
 
+/**
+ * モーションセンサーの利用許可が下りなかったことを表す。
+ *
+ * core は表示文言を持たない。どう伝えるかは UI 側の責務なので、
+ * 型で区別できるようにしておき、翻訳は呼び出し側で行う。
+ */
+export class MotionPermissionDeniedError extends Error {
+  constructor() {
+    super('motion permission denied')
+    this.name = 'MotionPermissionDeniedError'
+  }
+}
+
 /** UserAgent から符号の既定値を推定する。誤っていても HUD から切り替えられる。 */
 export function detectGravitySignConvention(userAgent: string): GravitySignConvention {
   const isAppleMobile = /iPad|iPhone|iPod/.test(userAgent)
@@ -125,7 +138,7 @@ export class DeviceMotionAttitudeProvider implements AttitudeProvider {
       const ctor = window.DeviceMotionEvent as unknown as { requestPermission: () => Promise<string> }
       const result = await ctor.requestPermission()
       if (result !== 'granted') {
-        throw new Error('モーションセンサーの利用が許可されませんでした')
+        throw new MotionPermissionDeniedError()
       }
     }
 

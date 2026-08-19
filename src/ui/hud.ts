@@ -1,6 +1,7 @@
 import { OrientationState, toDisplayName, type Vec3 } from '../core/orientation'
 import type { OrientationManager } from '../core/orientationManager'
 import type { GravityManager } from '../systems/gravityManager'
+import type { MessageKey } from '../i18n'
 
 const SELECTABLE_STATES = [
   OrientationState.Portrait,
@@ -29,8 +30,10 @@ export class Hud {
   private readonly stateLabel: HTMLElement
   private readonly rows: Record<string, HTMLElement> = {}
   private readonly simulationPanel: HTMLElement
+  private readonly t: (key: MessageKey) => string
 
-  constructor(root: HTMLElement, callbacks: HudCallbacks) {
+  constructor(root: HTMLElement, translate: (key: MessageKey) => string, callbacks: HudCallbacks) {
+    this.t = translate
     this.stateLabel = root.querySelector<HTMLElement>('[data-hud="state"]')!
     this.simulationPanel = root.querySelector<HTMLElement>('[data-hud="simulation"]')!
 
@@ -63,7 +66,7 @@ export class Hud {
     this.setRow('world', formatVector(gravity.direction))
 
     // OS の画面回転はゲームロジックに使っていない。比較のために出しているだけ。
-    this.setRow('os', `${screen.orientation?.type ?? 'unknown'} (未使用)`)
+    this.setRow('os', `${screen.orientation?.type ?? 'unknown'} (${this.t('hud.unused')})`)
 
     this.simulationPanel.hidden = !simulated
   }
