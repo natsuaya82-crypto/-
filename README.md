@@ -134,8 +134,17 @@ UserAgent から自動判定している。上下が逆に出る場合は `?debu
 
 ### Web (GitHub Pages)
 
-`main` への push で自動公開される（`.github/workflows/pages.yml`）。
+**初回だけ手作業が要る。** リポジトリの Settings > Pages を開き、
+Source を **GitHub Actions** に変更する。
+
+ワークフローのトークンでは Pages を新規に有効化できないため
+(`Resource not accessible by integration` で落ちる)、ここだけは
+リポジトリの管理権限を持つ人がやる必要がある。
+
+一度設定すれば、あとは push で自動公開される（`.github/workflows/pages.yml`）。
 作業ブランチからも公開できるようにしてあるのは、main へ取り込む前に実物を確認するため。
+
+公開先: <https://natsuaya82-crypto.github.io/-/>
 
 ### iPhone (TestFlight)
 
