@@ -1,0 +1,220 @@
+name: iOS Deploy to TestFlight
+
+# Mac を使わずに iPhone 実機テストするためのパイプライン。
+#
+#   ubuntu (1倍課金) : Unity で Xcode プロジェクトを生成する。重いのでこちら側に置く。
+#   macOS  (10倍課金): 署名して archive し、TestFlight へ上げる。ここは短く保つ。
+#
+# 起動方法は JJJJ / LLLLLLL と同じ:
+#   git tag build-1 && git push origin build-1
+#   もしくは Actions タブから手動実行 (その場合ビルド番号は run 番号を使う)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'build-*'
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+env:
+  UNITY_VERSION: 6000.0.81f1
+  UNITY_PROJECT_PATH: unity/SmartphoneGimmick
+
+  # ここ 2 つは Apple Developer / App Store Connect 側で作ったものと
+  # 文字列が完全に一致していないと archive か export が落ちる。
+  IOS_BUNDLE_ID: com.tokinets.gimmick
+  IOS_PROVISIONING_PROFILE_NAME: Gimmick Distribution
+
+jobs:
+  build-xcode-project:
+    name: Unity → Xcode project (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      # ビルド番号は「タグ名 build-NN の NN」を唯一の正とする。
+      # 手で上げ忘れると、全部成功したうえで最後のアップロードだけが 409
+      # "The bundle version must be higher than the previously uploaded version" で落ちる。
+      - name: Resolve build number
+        run: |
+          REF="${GITHUB_REF_NAME}"
+          case "$REF" in
+            build-*)
+              BUILD_NO="${REF#build-}"
+              case "$BUILD_NO" in
+                ''|*[!0-9]*)
+                  echo "::error::タグから数値のビルド番号を取り出せません: $REF （build-7 の形式にしてください）"
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              BUILD_NO="${GITHUB_RUN_NUMBER}"
+              echo "タグ起動ではないため run 番号を使います"
+              ;;
+          esac
+          echo "IOS_BUILD_NUMBER=${BUILD_NO}" >> "$GITHUB_ENV"
+          echo "build number = ${BUILD_NO}"
+
+      # Library の再生成は数分〜十数分かかる。キャッシュが効くと大幅に短縮される。
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.UNITY_PROJECT_PATH }}/Library
+          key: Library-iOS-${{ hashFiles(format('{0}/Assets/**', env.UNITY_PROJECT_PATH), format('{0}/Packages/**', env.UNITY_PROJECT_PATH)) }}
+          restore-keys: |
+            Library-iOS-
+            Library-
+
+      - name: Build with Unity
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_BUNDLE_ID: ${{ env.IOS_BUNDLE_ID }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ env.IOS_PROVISIONING_PROFILE_NAME }}
+          IOS_BUILD_NUMBER: ${{ env.IOS_BUILD_NUMBER }}
+        with:
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: iOS
+          buildMethod: SmartphoneGimmick.EditorTools.CiBuilder.BuildIos
+          allowDirtyBuild: true
+
+      # Unity は Docker 内で root として動くため、生成物の所有者を戻さないと
+      # 後続ステップが読み書きできない。
+      - name: Fix file ownership
+        run: sudo chown -R "$(id -u):$(id -g)" "${UNITY_PROJECT_PATH}"
+
+      # 出力パスは GameCI の仕様変更で変わりうるので、決め打ちせず実際に探す。
+      # tar で固めるのは、artifact の up/download で実行権限が失われるのを防ぐため
+      # （MapFileParser.sh から実行ビットが落ちると archive が失敗する）。
+      - name: Package Xcode project
+        run: |
+          PBX=$(find "${UNITY_PROJECT_PATH}" -name 'Unity-iPhone.xcodeproj' -maxdepth 6 | head -1)
+          if [ -z "$PBX" ]; then
+            echo "::error::Unity-iPhone.xcodeproj が見つかりません。Unity のビルドが失敗している可能性があります。"
+            find "${UNITY_PROJECT_PATH}" -maxdepth 4 -type d -name build -o -maxdepth 4 -type d -name iOS
+            exit 1
+          fi
+          XCODE_DIR=$(dirname "$PBX")
+          echo "Xcode project: $XCODE_DIR"
+          tar -czf xcode-project.tar.gz -C "$XCODE_DIR" .
+
+      - name: Upload Xcode project
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-project
+          path: xcode-project.tar.gz
+          retention-days: 3
+
+  deploy-testflight:
+    name: Sign & upload to TestFlight (macOS)
+    needs: build-xcode-project
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Select Xcode
+        run: |
+          XCODE=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -1)
+          [ -z "$XCODE" ] && XCODE=$(find /Applications -maxdepth 1 -name "Xcode_*.app" | sort -V | tail -1)
+          [ -z "$XCODE" ] && XCODE=/Applications/Xcode.app
+          sudo xcode-select -s "$XCODE"
+          echo "Using: $XCODE"; xcodebuild -version
+
+      - name: Download Xcode project
+        uses: actions/download-artifact@v4
+        with:
+          name: xcode-project
+
+      - name: Unpack Xcode project
+        run: |
+          mkdir -p ios-build
+          tar -xzf xcode-project.tar.gz -C ios-build
+          # tar で権限は保たれるが、念のためビルドフェーズが叩くスクリプトに実行権を付け直す。
+          find ios-build -name '*.sh' -exec chmod +x {} \;
+          ls -la ios-build
+
+      - name: Install Apple Distribution Certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.DISTRIBUTION_P12_BASE64 }}
+          p12-password: ${{ secrets.DISTRIBUTION_P12_PASSWORD }}
+
+      - name: Install Provisioning Profile
+        env:
+          PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          test -n "$PROFILE_BASE64" || { echo "::error::PROVISIONING_PROFILE_BASE64 is empty"; exit 1; }
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_BASE64" | base64 --decode > app.mobileprovision
+          cp app.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          # どのプロファイルで署名しているかを後からログで追えるようにしておく。
+          security cms -D -i app.mobileprovision > app.plist
+          echo "profile name  : $(/usr/libexec/PlistBuddy -c 'Print :Name' app.plist)"
+          echo "profile app id: $(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' app.plist)"
+
+      - name: Build & Archive
+        run: |
+          # 署名パラメータは CLI に渡さない。渡すと UnityFramework ターゲットにも波及して
+          # "does not support provisioning profiles" で archive が落ちる。
+          # 署名設定は Unity の IosPostProcessBuild が pbxproj に書き込み済み。
+          xcodebuild -project ios-build/Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            -destination "generic/platform=iOS" \
+            archive
+
+      - name: Export IPA
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${IOS_BUNDLE_ID}</key>
+              <string>${IOS_PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist
+          # Unity の Product Name には空白が入るため、IPA 名は決め打ちにせず拾う。
+          IPA=$(find build/ipa -name '*.ipa' | head -1)
+          test -n "$IPA" || { echo "::error::IPA が生成されていません"; exit 1; }
+          echo "IPA_PATH=${IPA}" >> "$GITHUB_ENV"
+          echo "IPA: ${IPA}"
+
+      - name: Upload to App Store Connect (TestFlight)
+        uses: apple-actions/upload-testflight-build@v4
+        with:
+          app-path: ${{ env.IPA_PATH }}
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.IOS_KEY_ID }}
+          api-private-key: ${{ secrets.IOS_API_KEY }}
+          # 処理完了待ちの間に API トークンが期限切れになり 401 で失敗表示になるのを防ぐ。
+          # アップロード自体は待ち有無に関係なく完了する。
+          wait-for-processing: false

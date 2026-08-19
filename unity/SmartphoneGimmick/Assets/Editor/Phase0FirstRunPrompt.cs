@@ -1,5 +1,6 @@
 using System.IO;
 using UnityEditor;
+using UnityEngine;
 
 namespace SmartphoneGimmick.EditorTools
 {
@@ -28,7 +29,8 @@ namespace SmartphoneGimmick.EditorTools
 
         private static void ShowPromptIfNeeded()
         {
-            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            // batch mode (CI) ではダイアログを出せない。ここで止めないとビルドが応答しなくなる。
+            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 return;
             }

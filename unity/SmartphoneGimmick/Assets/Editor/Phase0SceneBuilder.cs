@@ -28,11 +28,26 @@ namespace SmartphoneGimmick.EditorTools
         [MenuItem("Tools/Phase 0/2. Create or Rebuild Phase 0 Scene", false, 11)]
         public static void CreateOrRebuildScene()
         {
+            // 未保存の変更がある状態で作り直すと編集内容を失うため、Editor 操作時のみ確認する。
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
                 return;
             }
 
+            BuildScene();
+        }
+
+        /// <summary>
+        /// 確認ダイアログを出さずにシーンを生成する。CI (batch mode) 用。
+        /// batch mode ではダイアログを出せないため、通常のメニュー版とは入口を分けている。
+        /// </summary>
+        public static void CreateSceneWithoutPrompt()
+        {
+            BuildScene();
+        }
+
+        private static void BuildScene()
+        {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             CreateCamera();

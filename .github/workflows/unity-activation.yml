@@ -1,0 +1,39 @@
+name: Unity Activation File (初回のみ)
+
+# Unity を GitHub Actions でビルドするには、ライセンスを CI に登録する必要がある。
+# このワークフローは、その申請ファイル (.alf) を生成するためだけのもの。
+#
+# 手順:
+#   1. Actions タブからこのワークフローを手動実行する
+#   2. 完了後、Artifacts から .alf ファイルをダウンロードする
+#   3. https://license.unity3d.com/manual を開き、.alf をアップロードする
+#      (Unity Personal を選択。Unity ID でのログインが必要)
+#   4. 発行された .ulf ファイルをテキストエディタで開き、中身を全部コピーする
+#   5. リポジトリの Settings > Secrets and variables > Actions で
+#      UNITY_LICENSE という名前の Secret に貼り付ける
+#
+# 一度 UNITY_LICENSE を登録すれば、このワークフローは二度と実行しなくてよい。
+
+on:
+  workflow_dispatch:
+
+env:
+  UNITY_VERSION: 6000.0.81f1
+
+jobs:
+  activation:
+    name: Request activation file
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request manual activation file
+        id: request
+        uses: game-ci/unity-request-activation-file@v2
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+
+      - name: Upload activation file
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-activation-file
+          path: ${{ steps.request.outputs.filePath }}
+          retention-days: 1
