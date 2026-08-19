@@ -1,0 +1,36 @@
+name: CI
+
+# テストと型チェックだけを回す軽いワークフロー。
+# TestFlight 配信 (ios-deploy.yml) は macOS ランナーで課金が 10 倍になるため、
+# 壊れているかどうかはここで先に分かるようにしておく。
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npx vite build

@@ -1,0 +1,159 @@
+:root {
+  --bg: #11131a;
+  --panel: rgba(20, 24, 34, 0.82);
+  --border: rgba(255, 255, 255, 0.12);
+  --text: #e8ecf5;
+  --muted: #94a0bb;
+  --accent: #6ee7a8;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* 端末を回す操作が長押し選択やダブルタップ拡大に化けないようにする。 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#hud {
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  left: 12px;
+  right: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.hud-caption {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.hud-state {
+  margin: 2px 0 10px;
+  font-size: clamp(22px, 6.5vw, 34px);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.01em;
+}
+
+.hud-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+}
+
+.hud-rows dt {
+  color: var(--muted);
+}
+
+.hud-rows dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.hud-simulation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* display を指定した要素では UA の [hidden] { display: none } が負けるため、明示的に打ち消す。 */
+.hud-simulation[hidden] {
+  display: none;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+button:active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.hud-invert {
+  width: 100%;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#start-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 12, 18, 0.92);
+}
+
+#start-overlay[hidden] {
+  display: none;
+}
+
+.start-panel {
+  text-align: center;
+  max-width: 320px;
+}
+
+.start-panel h1 {
+  font-size: 32px;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.start-panel p {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+#start-button {
+  width: 100%;
+  padding: 16px;
+  font-size: 16px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#start-message {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}

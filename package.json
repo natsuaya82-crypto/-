@@ -1,0 +1,35 @@
+{
+  "name": "smartphone-gimmick",
+  "version": "0.1.0",
+  "description": "スマートフォンそのものを操作して、ゲーム世界のルールを変えながら攻略する3D短編ステージ型アクションパズル",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/natsuaya82-crypto/-.git"
+  },
+  "bugs": {
+    "url": "https://github.com/natsuaya82-crypto/-/issues"
+  },
+  "homepage": "https://github.com/natsuaya82-crypto/-#readme",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "@types/three": "^0.185.4",
+    "playwright-core": "^1.62.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
+  }
+}

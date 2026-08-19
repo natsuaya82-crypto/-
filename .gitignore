@@ -1,0 +1,13 @@
+node_modules/
+dist/
+artifacts/
+.DS_Store
+*.local
+.vite/
+
+# Capacitor / iOS のビルド生成物
+ios/App/Pods/
+ios/App/App/public/
+ios/App/build/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
